@@ -99,31 +99,39 @@ export default function SnackPointsPage() {
           <p className="text-sm text-slate-500 mt-1">Earn points on eligible purchases. Redeem for Snackora coupons.</p>
         </div>
 
-        {!phone ? (
+        {!data ? (
           <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center max-w-md mx-auto">
-            <p className="text-sm text-slate-600 mb-4">Enter your mobile number to view your SnackPoints.</p>
-            <div className="flex gap-2">
+            <p className="text-sm text-slate-600 mb-4">Enter your 10-digit mobile number to view your SnackPoints.</p>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const clean = phone.replace(/\D/g, '');
+                if (clean.length === 10) {
+                  fetchData(clean);
+                }
+              }}
+              className="flex gap-2"
+            >
               <input
                 type="tel"
+                inputMode="numeric"
                 maxLength={10}
                 value={phone}
                 onChange={(e) => {
-                  const val = e.target.value.replace(/\D/g, '');
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 10);
                   setPhone(val);
-                  if (val.length === 10) {
-                    fetchData(val);
-                  }
                 }}
                 placeholder="9876543210"
-                className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/40"
+                className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-base font-semibold focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/40"
               />
               <button
-                onClick={() => fetchData(phone)}
-                className="px-4 py-2.5 bg-[#FF6B00] text-white font-bold rounded-xl text-sm"
+                type="submit"
+                disabled={phone.replace(/\D/g, '').length !== 10}
+                className="px-5 py-3 bg-[#FF6B00] hover:bg-[#EA580C] disabled:bg-slate-300 text-white font-bold rounded-xl text-sm transition active:scale-95"
               >
                 View
               </button>
-            </div>
+            </form>
           </div>
         ) : loading ? (
           <div className="flex justify-center py-12">
