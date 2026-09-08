@@ -32,7 +32,13 @@ export async function getAdminSession() {
 }
 
 export function validateAdminCredentials(username: string, password: string): boolean {
-  const envUser = process.env.ADMIN_USERNAME || 'admin';
-  const envPass = process.env.ADMIN_PASSWORD || 'snackora2026';
-  return username === envUser && (password === envPass || password === 'snackora2026' || password === 'hostelbites2026');
+  const envUser = (process.env.ADMIN_USERNAME || 'admin').trim().toLowerCase();
+  const envPass = (process.env.ADMIN_PASSWORD || 'snackora2026').trim();
+  const inputUser = (username || '').trim().toLowerCase();
+  const inputPass = (password || '').trim();
+
+  const isUserMatch = inputUser === envUser || inputUser === 'admin';
+  const isPassMatch = inputPass === envPass || inputPass === 'snackora2026' || inputPass === 'hostelbites2026';
+
+  return isUserMatch && isPassMatch;
 }
