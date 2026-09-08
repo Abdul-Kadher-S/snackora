@@ -19,6 +19,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
+import { useRealtimeOrders } from '@/hooks/useRealtimeOrders';
 
 interface AnalyticsData {
   totalRevenue: number;
@@ -40,8 +41,8 @@ export function DashboardClient() {
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
 
-  const fetchAnalytics = async () => {
-    setLoading(true);
+  const fetchAnalytics = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const res = await fetch('/api/admin/analytics');
       if (res.ok) {
@@ -53,9 +54,22 @@ export function DashboardClient() {
     } catch (e) {
       console.error(e);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
+
+  // Realtime order subscription
+  const { isConnected, isRealtimeAvailable } = useRealtimeOrders({
+    onOrderCreated: () => {
+      fetchAnalytics(true);
+    },
+    onOrderUpdated: () => {
+      fetchAnalytics(true);
+    },
+    onSync: () => {
+      fetchAnalytics(true);
+    },
+  });
 
   useEffect(() => {
     fetchAnalytics();
@@ -107,8 +121,29 @@ export function DashboardClient() {
         </div>
 
         <div className="flex items-center gap-2.5">
+          {/* Realtime Live Indicator Badge */}
+          <div
+            className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-2 ${
+              isConnected
+                ? 'bg-emerald-950/80 border-emerald-500/40 text-emerald-400'
+                : 'bg-slate-800/80 border-slate-700 text-slate-400'
+            }`}
+          >
+            <span className="relative flex h-2 w-2">
+              {isConnected && (
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              )}
+              <span
+                className={`relative inline-flex rounded-full h-2 w-2 ${
+                  isConnected ? 'bg-emerald-500' : 'bg-slate-500'
+                }`}
+              ></span>
+            </span>
+            <span>{isConnected ? 'Realtime Live' : 'Connecting...'}</span>
+          </div>
+
           <button
-            onClick={fetchAnalytics}
+            onClick={() => fetchAnalytics(false)}
             className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border border-slate-700"
           >
             <RefreshCw className="w-3.5 h-3.5" />

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getAdminSession } from '@/lib/auth';
+import { broadcastOrderEvent } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
   try {
@@ -361,6 +362,9 @@ export async function POST(request: NextRequest) {
 
       return newOrder;
     });
+
+    // Realtime broadcast to Supabase
+    broadcastOrderEvent('ORDER_CREATED', createdOrder);
 
     return NextResponse.json(createdOrder, { status: 201 });
   } catch (error: any) {

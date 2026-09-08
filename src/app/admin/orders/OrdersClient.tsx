@@ -21,6 +21,8 @@ import {
   Banknote,
 } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
+import { useRealtimeOrders } from '@/hooks/useRealtimeOrders';
+import { Radio } from 'lucide-react';
 
 const STATUS_FILTERS: { key: string; label: string }[] = [
   { key: 'ALL', label: 'All Orders' },
@@ -39,8 +41,8 @@ export function OrdersClient() {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const { showToast } = useToast();
 
-  const fetchOrders = async () => {
-    setLoading(true);
+  const fetchOrders = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       let url = '/api/orders';
       const params = new URLSearchParams();
@@ -56,9 +58,22 @@ export function OrdersClient() {
     } catch (e) {
       console.error(e);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
+
+  // Realtime order subscription
+  const { isConnected, isRealtimeAvailable } = useRealtimeOrders({
+    onOrderCreated: (newOrder) => {
+      fetchOrders(true);
+    },
+    onOrderUpdated: (updatedOrder) => {
+      fetchOrders(true);
+    },
+    onSync: () => {
+      fetchOrders(true);
+    },
+  });
 
   useEffect(() => {
     fetchOrders();
@@ -102,13 +117,36 @@ export function OrdersClient() {
           </p>
         </div>
 
-        <button
-          onClick={fetchOrders}
-          className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl border border-slate-700 transition flex items-center gap-1.5 text-xs font-bold shrink-0 self-start sm:self-auto"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          <span>Refresh Live Orders</span>
-        </button>
+        <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-auto">
+          {/* Realtime Live Indicator Badge */}
+          <div
+            className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-2 ${
+              isConnected
+                ? 'bg-emerald-950/80 border-emerald-500/40 text-emerald-400'
+                : 'bg-slate-800/80 border-slate-700 text-slate-400'
+            }`}
+          >
+            <span className="relative flex h-2 w-2">
+              {isConnected && (
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              )}
+              <span
+                className={`relative inline-flex rounded-full h-2 w-2 ${
+                  isConnected ? 'bg-emerald-500' : 'bg-slate-500'
+                }`}
+              ></span>
+            </span>
+            <span>{isConnected ? 'Realtime Live' : 'Connecting...'}</span>
+          </div>
+
+          <button
+            onClick={() => fetchOrders(false)}
+            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl border border-slate-700 transition flex items-center gap-1.5 text-xs font-bold"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
+          </button>
+        </div>
       </div>
 
       {/* Filter Tabs & Search Bar */}

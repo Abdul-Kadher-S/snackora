@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getAdminSession } from '@/lib/auth';
+import { broadcastOrderEvent } from '@/lib/supabase';
 
 export async function GET(
   request: NextRequest,
@@ -230,6 +231,10 @@ export async function PATCH(
       where: { id },
       include: { items: true },
     });
+
+    if (updated) {
+      broadcastOrderEvent('ORDER_UPDATED', updated);
+    }
 
     return NextResponse.json(updated);
   } catch (error: any) {
