@@ -195,10 +195,10 @@ export async function POST(request: NextRequest) {
     // === DELIVERY FEE CALCULATION ===
     const deliveryChargeSetting = await prisma.storeSetting.findUnique({ where: { key: 'delivery_charge' } });
     const freeThresholdSetting = await prisma.storeSetting.findUnique({ where: { key: 'free_delivery_threshold' } });
-    
+
     const deliveryChargeAmount = deliveryChargeSetting ? parseFloat(deliveryChargeSetting.value) : 20;
     const freeThreshold = freeThresholdSetting ? parseFloat(freeThresholdSetting.value) : 200;
-    
+
     // Free delivery based on subtotal BEFORE coupon
     const freeDeliveryApplied = calculatedSubtotal >= freeThreshold;
     const deliveryFee = freeDeliveryApplied ? 0 : deliveryChargeAmount;

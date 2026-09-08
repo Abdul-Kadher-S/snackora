@@ -17,7 +17,7 @@ function playOrderChime() {
     const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioCtx) return;
     const ctx = new AudioCtx();
-    
+
     // Play two-tone bell chime (800Hz -> 1000Hz)
     const now = ctx.currentTime;
     const osc1 = ctx.createOscillator();
