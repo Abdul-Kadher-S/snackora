@@ -1,0 +1,172 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?
+  imageUrl    String?
+  active      Boolean   @default(true)
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  products    Product[]
+}
+
+model Product {
+  id              String      @id @default(cuid())
+  name            String
+  description     String
+  categoryId      String
+  category        Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  price           Float
+  originalPrice   Float?
+  discount        Int         @default(0)
+  imageUrl        String
+  stock           Int         @default(50)
+  available       Boolean     @default(true)
+  brand           String?
+  rating          Float       @default(4.5)
+  foodType        String      @default("VEG") // VEG, NON_VEG, VEGAN
+  taste           String      @default("SPICY") // SWEET, SPICY, SALTY, SOUR
+  origin          String      @default("INDIAN") // INDIAN, INTERNATIONAL
+  tags            String      @default("") // Comma separated or search tags
+  isTrending      Boolean     @default(false)
+  isHalfPrice     Boolean     @default(false)
+  earnSnackpoints Boolean     @default(true)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  orderItems      OrderItem[]
+}
+
+model Customer {
+  id                    String                 @id @default(cuid())
+  phone                 String                 @unique
+  name                  String
+  block                 String?
+  roomNumber            String?
+  availableSnackpoints  Int                    @default(0)
+  pendingSnackpoints    Int                    @default(0)
+  totalEarned           Int                    @default(0)
+  totalRedeemed         Int                    @default(0)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  snackpointTransactions SnackpointTransaction[]
+  coupons               Coupon[]
+  notifications         Notification[]
+  adminMessages         AdminMessage[]
+}
+
+model Order {
+  id                      String      @id @default(cuid())
+  orderNumber             String      @unique
+  customerName            String
+  phone                   String
+  hostel                  String
+  roomNumber              String
+  deliveryNote            String?
+  subtotal                Float
+  deliveryFee             Float       @default(0)
+  couponDiscount          Float       @default(0)
+  couponId                String?
+  total                   Float
+  paymentMethod           String      @default("CASH_ON_DELIVERY")
+  status                  String      @default("ORDER_RECEIVED") // ORDER_RECEIVED, CONFIRMED, PREPARING, OUT_FOR_DELIVERY, DELIVERED, CANCELLED
+  freeDeliveryApplied     Boolean     @default(false)
+  deliveryThresholdAtOrder Float      @default(0)
+  snackpointsEarned       Int         @default(0)
+  createdAt               DateTime    @default(now())
+  updatedAt               DateTime    @updatedAt
+  items                   OrderItem[]
+  snackpointTransactions  SnackpointTransaction[]
+  adminMessages           AdminMessage[]
+}
+
+model OrderItem {
+  id          String   @id @default(cuid())
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  productName String
+  price       Float
+  quantity    Int
+  subtotal    Float
+  createdAt   DateTime @default(now())
+}
+
+model StoreSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model Offer {
+  id            String   @id @default(cuid())
+  code          String   @unique
+  title         String
+  description   String
+  discountType  String   // PERCENTAGE, FLAT
+  discountValue Float
+  minOrderValue Float    @default(0)
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+}
+
+model SnackpointTransaction {
+  id          String    @id @default(cuid())
+  customerId  String
+  customer    Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  orderId     String?
+  order       Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  points      Int
+  type        String    // EARN, REDEEM, PENDING_EARN
+  status      String    @default("PENDING") // PENDING, COMPLETED, CANCELLED
+  description String    @default("")
+  createdAt   DateTime  @default(now())
+}
+
+model Coupon {
+  id          String    @id @default(cuid())
+  customerId  String
+  customer    Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  pointsSpent Int
+  value       Float     // ₹5, ₹10, ₹15, ₹20
+  status      String    @default("AVAILABLE") // AVAILABLE, USED, EXPIRED
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime
+  usedAt      DateTime?
+  usedOrderId String?
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  title       String
+  message     String
+  type        String   @default("INFO") // INFO, ORDER, SNACKPOINTS, COUPON, ADMIN_MESSAGE, OFFER
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+model AdminMessage {
+  id          String   @id @default(cuid())
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  orderId     String?
+  order       Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  adminUser   String   @default("admin")
+  message     String
+  messageType String   @default("CUSTOM") // INCORRECT_DETAILS, INCORRECT_MOBILE, INCORRECT_ROOM, CUSTOM
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
