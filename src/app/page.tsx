@@ -6,26 +6,36 @@ import { Product, Category } from '@/types';
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
-  const [categories, products] = await Promise.all([
-    prisma.category.findMany({
-      where: { active: true },
-      orderBy: { sortOrder: 'asc' },
-    }),
-    prisma.product.findMany({
-      where: { available: true },
-      orderBy: [{ rating: 'desc' }, { discount: 'desc' }],
-      include: {
-        category: {
-          select: { id: true, name: true, slug: true },
+  try {
+    const [categories, products] = await Promise.all([
+      prisma.category.findMany({
+        where: { active: true },
+        orderBy: { sortOrder: 'asc' },
+      }),
+      prisma.product.findMany({
+        where: { available: true },
+        orderBy: [{ rating: 'desc' }, { discount: 'desc' }],
+        include: {
+          category: {
+            select: { id: true, name: true, slug: true },
+          },
         },
-      },
-    }),
-  ]);
+      }),
+    ]);
 
-  return (
-    <HomeClient
-      categories={JSON.parse(JSON.stringify(categories)) as Category[]}
-      products={JSON.parse(JSON.stringify(products)) as Product[]}
-    />
-  );
+    return (
+      <HomeClient
+        categories={JSON.parse(JSON.stringify(categories)) as Category[]}
+        products={JSON.parse(JSON.stringify(products)) as Product[]}
+      />
+    );
+  } catch (error) {
+    console.error('Database query failed in HomePage:', error);
+    return (
+      <HomeClient
+        categories={[]}
+        products={[]}
+      />
+    );
+  }
 }

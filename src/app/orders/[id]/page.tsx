@@ -12,20 +12,25 @@ export default async function OrderDetailPage({
 }) {
   const { id } = await params;
 
-  const order = await prisma.order.findFirst({
-    where: {
-      OR: [{ id }, { orderNumber: id }],
-    },
-    include: {
-      items: {
-        include: {
-          product: {
-            select: { imageUrl: true, foodType: true, brand: true },
+  let order = null;
+  try {
+    order = await prisma.order.findFirst({
+      where: {
+        OR: [{ id }, { orderNumber: id }],
+      },
+      include: {
+        items: {
+          include: {
+            product: {
+              select: { imageUrl: true, foodType: true, brand: true },
+            },
           },
         },
       },
-    },
-  });
+    });
+  } catch (error) {
+    console.error('Database query failed in OrderDetailPage:', error);
+  }
 
   if (!order) {
     notFound();

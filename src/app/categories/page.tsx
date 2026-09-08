@@ -11,15 +11,20 @@ import { ChevronRight, Sparkles } from 'lucide-react';
 export const dynamic = 'force-dynamic';
 
 export default async function CategoriesPage() {
-  const categories = await prisma.category.findMany({
-    where: { active: true },
-    orderBy: { sortOrder: 'asc' },
-    include: {
-      _count: {
-        select: { products: true },
+  let categories: any[] = [];
+  try {
+    categories = await prisma.category.findMany({
+      where: { active: true },
+      orderBy: { sortOrder: 'asc' },
+      include: {
+        _count: {
+          select: { products: true },
+        },
       },
-    },
-  });
+    });
+  } catch (error) {
+    console.error('Database query failed in CategoriesPage:', error);
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F8FAFC]">
