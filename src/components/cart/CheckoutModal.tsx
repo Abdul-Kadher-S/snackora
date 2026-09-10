@@ -328,7 +328,7 @@ export function CheckoutModal() {
                 setCustomerName(val);
                 validateName(val);
               }}
-              placeholder="e.g. Abdul Kadher"
+              placeholder="e.g. Rohan Sharma"
               className={`w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/40 focus:border-[#FF6B00] transition font-medium ${
                 nameError ? 'border-rose-300' : 'border-slate-200'
               }`}
