@@ -113,62 +113,65 @@ export function ProductCard({ product, onOpenDetails }: ProductCardProps) {
         )}
 
         {/* Footer: Price & Add Button */}
-        <div className="mt-auto pt-2 flex items-center justify-between gap-2 border-t border-slate-50">
-          <div className="flex flex-col">
-            <div className="flex items-center gap-1.5">
-              <span className="text-base font-black text-slate-900">₹{displayPrice}</span>
+        <div className="mt-auto pt-2.5 flex items-center justify-between gap-1.5 border-t border-slate-100">
+          <div className="flex flex-col min-w-0 pr-1">
+            <div className="flex items-baseline gap-1">
+              <span className="text-sm sm:text-base font-black text-slate-900 leading-tight">₹{displayPrice}</span>
               {(product.isHalfPrice || product.originalPrice) && product.originalPrice && (
-                <span className="text-xs text-slate-400 line-through">₹{product.originalPrice}</span>
+                <span className="text-[10px] sm:text-xs text-slate-400 line-through">₹{product.originalPrice}</span>
               )}
             </div>
           </div>
 
           {/* Add to cart / Quantity steppers */}
-          {isOutOfStock ? (
-            <button
-              disabled
-              className="text-xs font-bold text-slate-400 bg-slate-100 px-3.5 py-1.5 rounded-xl cursor-not-allowed"
-            >
-              Unavailable
-            </button>
-          ) : quantity === 0 ? (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                addToCart(product);
-              }}
-              className="px-4 py-1.5 bg-orange-50 hover:bg-[#FF6B00] text-[#FF6B00] hover:text-white border border-orange-300 hover:border-[#FF6B00] text-xs md:text-sm font-bold rounded-xl transition-all duration-200 shadow-xs hover:shadow-md hover:scale-105 active:scale-95 flex items-center gap-1"
-            >
-              <span>ADD</span>
-              <Plus className="w-3.5 h-3.5" />
-            </button>
-          ) : (
-            <div
-              onClick={(e) => e.stopPropagation()}
-              className="flex items-center bg-[#FF6B00] text-white rounded-xl shadow-md overflow-hidden font-bold text-xs md:text-sm animate-scale-up"
-            >
+          <div className="shrink-0">
+            {isOutOfStock ? (
+              <span className="inline-flex items-center justify-center text-[10px] sm:text-xs font-bold text-slate-400 bg-slate-100 px-2.5 py-1.5 rounded-xl cursor-not-allowed">
+                Out of Stock
+              </span>
+            ) : quantity === 0 ? (
               <button
-                onClick={() => updateQuantity(product.id, quantity - 1)}
-                className="px-2.5 py-1.5 hover:bg-[#EA580C] transition active:scale-90"
-                aria-label="Decrease quantity"
-              >
-                <Minus className="w-3.5 h-3.5" />
-              </button>
-              <span className="px-2 py-1 min-w-[24px] text-center">{quantity}</span>
-              <button
-                onClick={() => {
-                  if (quantity < product.stock) {
-                    updateQuantity(product.id, quantity + 1);
-                  }
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  addToCart(product);
                 }}
-                disabled={quantity >= product.stock}
-                className="px-2.5 py-1.5 hover:bg-[#EA580C] transition active:scale-90 disabled:opacity-50"
-                aria-label="Increase quantity"
+                className="px-3 sm:px-4 py-1.5 min-h-[34px] sm:min-h-[36px] bg-orange-50 hover:bg-[#FF6B00] text-[#FF6B00] hover:text-white border border-orange-300 hover:border-[#FF6B00] text-xs font-bold rounded-xl transition-all duration-200 shadow-xs hover:shadow-md active:scale-95 flex items-center gap-1.5 shrink-0"
+                aria-label={`Add ${product.name} to cart`}
               >
-                <Plus className="w-3.5 h-3.5" />
+                <span>ADD</span>
+                <Plus className="w-3.5 h-3.5 stroke-[2.5] shrink-0" />
               </button>
-            </div>
-          )}
+            ) : (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="flex items-center bg-[#FF6B00] text-white rounded-xl shadow-md font-bold text-xs animate-scale-up h-[34px] sm:h-[36px] overflow-hidden"
+              >
+                <button
+                  type="button"
+                  onClick={() => updateQuantity(product.id, quantity - 1)}
+                  className="w-8 h-full flex items-center justify-center hover:bg-[#EA580C] transition active:scale-90"
+                  aria-label="Decrease quantity"
+                >
+                  <Minus className="w-3.5 h-3.5 stroke-[2.5]" />
+                </button>
+                <span className="px-1 text-center font-black min-w-[20px] select-none text-xs">{quantity}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (quantity < product.stock) {
+                      updateQuantity(product.id, quantity + 1);
+                    }
+                  }}
+                  disabled={quantity >= product.stock}
+                  className="w-8 h-full flex items-center justify-center hover:bg-[#EA580C] transition active:scale-90 disabled:opacity-50"
+                  aria-label="Increase quantity"
+                >
+                  <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

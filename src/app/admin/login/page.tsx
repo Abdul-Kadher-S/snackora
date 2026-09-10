@@ -109,12 +109,6 @@ export default function AdminLoginPage() {
             </div>
           </div>
 
-          {/* Quick hint badge */}
-          <div className="p-3 bg-slate-800/50 rounded-xl border border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
-            <span>Default ID: <strong className="text-white">admin</strong></span>
-            <span>Password: <strong className="text-white">snackora2026</strong></span>
-          </div>
-
           {/* Submit */}
           <button
             type="submit"

@@ -95,10 +95,10 @@ export function CartDrawer() {
   const deliveryOk = isDeliveryAvailable(selectedHostel);
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/60 backdrop-blur-xs animate-fade-in">
-      <div className="flex-1" onClick={() => setIsCartOpen(false)} />
+    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/60 backdrop-blur-xs animate-fade-in overflow-hidden">
+      <div className="hidden sm:block flex-1" onClick={() => setIsCartOpen(false)} />
 
-      <div className="relative w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-slide-down">
+      <div className="relative w-full sm:max-w-md bg-white h-full shadow-2xl flex flex-col animate-slide-down overflow-hidden">
         {/* Header */}
         <div className="p-4 md:p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-orange-50 to-amber-50">
           <div>

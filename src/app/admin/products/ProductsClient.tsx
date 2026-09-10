@@ -16,6 +16,7 @@ import {
   Loader2,
   RefreshCw,
   ImageIcon,
+  Upload,
   Sparkles,
   Star,
   Flame,
@@ -88,6 +89,45 @@ export function ProductsClient() {
   const [earnSnackpoints, setEarnSnackpoints] = useState(true);
   const [isTrending, setIsTrending] = useState(false);
   const [isHalfPrice, setIsHalfPrice] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('Image file too large (maximum size is 5MB)', 'error');
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+
+      const res = await fetch('/api/admin/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to upload image');
+      }
+
+      setImageUrl(data.url);
+      showToast('Product photo uploaded from gallery successfully!', 'success');
+    } catch (err: any) {
+      console.error('Gallery upload error:', err);
+      showToast(err.message || 'Failed to upload photo', 'error');
+    } finally {
+      setUploadingImage(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -957,35 +997,113 @@ export function ProductsClient() {
                 </div>
               </div>
 
-              {/* Snack Image URL & Touch Presets */}
-              <div className="space-y-2">
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">
-                  Snack Image URL (or Pick a Preset) *
-                </label>
-                <input
-                  type="url"
-                  required
-                  value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                  placeholder="https://..."
-                  className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/50"
-                />
-                {/* Presets Grid for Mobile */}
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {PRESET_FOOD_IMAGES.map((preset) => (
+              {/* Snack Image: Upload from Device / URL / Presets */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">
+                    Snack Photo *
+                  </label>
+                  {imageUrl && (
                     <button
-                      key={preset.label}
                       type="button"
-                      onClick={() => setImageUrl(preset.url)}
-                      className={`text-[10px] px-2.5 py-1.5 rounded-lg border transition ${
-                        imageUrl === preset.url
-                          ? 'bg-[#FF6B00] text-white border-[#FF6B00] font-bold'
-                          : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
-                      }`}
+                      onClick={() => setImageUrl('')}
+                      className="text-[11px] text-red-400 hover:text-red-300 font-medium"
                     >
-                      {preset.label}
+                      Clear Image
                     </button>
-                  ))}
+                  )}
+                </div>
+
+                {/* Image Preview & Upload Controls */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-3 bg-slate-800/80 border border-slate-700/80 rounded-2xl">
+                  {imageUrl ? (
+                    <div className="relative w-20 h-20 rounded-xl overflow-hidden bg-slate-900 border border-slate-700 shrink-0">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={imageUrl}
+                        alt="Product Preview"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1541592106381-b31e9677c0e5?w=400';
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-20 h-20 rounded-xl bg-slate-900 border border-dashed border-slate-700 flex flex-col items-center justify-center text-slate-500 shrink-0">
+                      <Upload className="w-6 h-6 mb-1 text-slate-600" />
+                      <span className="text-[9px] uppercase font-bold tracking-wider">No Photo</span>
+                    </div>
+                  )}
+
+                  <div className="flex-1 w-full space-y-2">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleImageUpload}
+                      accept="image/png, image/jpeg, image/webp, image/gif"
+                      className="hidden"
+                    />
+
+                    <button
+                      type="button"
+                      disabled={uploadingImage}
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-[#FF6B00] to-orange-500 hover:from-orange-600 hover:to-orange-500 active:scale-95 text-white text-xs font-bold rounded-xl shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2 transition disabled:opacity-50"
+                    >
+                      {uploadingImage ? (
+                        <>
+                          <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          <span>Uploading Photo...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>Upload from Gallery / Files</span>
+                        </>
+                      )}
+                    </button>
+                    <p className="text-[10px] text-slate-400">
+                      PNG, JPG, WebP up to 5MB. Directly uploads from your phone or PC.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Direct URL input */}
+                <div>
+                  <label className="block text-[11px] text-slate-400 mb-1">
+                    Or paste an Image URL directly:
+                  </label>
+                  <input
+                    type="url"
+                    required
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    placeholder="https://images.unsplash.com/..."
+                    className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/50 text-slate-200"
+                  />
+                </div>
+
+                {/* Presets Grid for Mobile */}
+                <div>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1.5">
+                    Quick Preset Photos
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {PRESET_FOOD_IMAGES.map((preset) => (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => setImageUrl(preset.url)}
+                        className={`text-[10px] px-2.5 py-1.5 rounded-lg border transition ${
+                          imageUrl === preset.url
+                            ? 'bg-[#FF6B00] text-white border-[#FF6B00] font-bold'
+                            : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 

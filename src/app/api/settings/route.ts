@@ -20,7 +20,11 @@ export async function GET() {
       settingsObj.announcement = '⚡ Snackora is LIVE! Order snacks delivered straight to your room with ₹0 Delivery fee!';
     }
 
-    return NextResponse.json(settingsObj);
+    return NextResponse.json(settingsObj, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
+      },
+    });
   } catch (error: any) {
     console.error('Error fetching settings:', error);
     return NextResponse.json({ error: 'Failed to fetch store settings' }, { status: 500 });

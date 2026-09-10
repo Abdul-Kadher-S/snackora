@@ -75,7 +75,7 @@ export function Footer() {
             <ul className="space-y-2.5 text-xs text-slate-400">
               <li className="flex items-center gap-2">
                 <MapPin className="w-3.5 h-3.5 text-[#FF6B00] shrink-0" />
-                <span>Annex · Noyyal New · Noyyal</span>
+                <span>Noyyal New Block · Noyyal Old Block · Annex</span>
               </li>
               <li className="flex items-center gap-2">
                 <Banknote className="w-3.5 h-3.5 text-emerald-400 shrink-0" />

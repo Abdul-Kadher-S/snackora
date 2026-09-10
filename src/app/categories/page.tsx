@@ -8,7 +8,8 @@ import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
 import { Footer } from '@/components/layout/Footer';
 import { ChevronRight, Sparkles } from 'lucide-react';
 
-export const dynamic = 'force-dynamic';
+// Incremental Static Regeneration with fast 60s cache
+export const revalidate = 60;
 
 export default async function CategoriesPage() {
   let categories: any[] = [];

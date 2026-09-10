@@ -11,14 +11,19 @@ import { Star, Gift, Clock, TrendingUp, ArrowRight, Loader2, CheckCircle2 } from
 export default function SnackPointsPage() {
   const { savedPhone, setSavedPhone } = useHostel();
   const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [redeeming, setRedeeming] = useState(false);
   const [phone, setPhone] = useState(savedPhone || '');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const fetchData = async (ph: string) => {
     const clean = (ph || '').replace(/\D/g, '');
-    if (clean.length !== 10) return;
+    if (clean.length !== 10) {
+      setErrorMsg('Please enter a valid 10-digit mobile number.');
+      return;
+    }
     setLoading(true);
+    setErrorMsg(null);
     try {
       const res = await fetch(`/api/snackpoints?phone=${clean}`);
       if (res.ok) {
@@ -33,9 +38,13 @@ export default function SnackPointsPage() {
           }
           window.dispatchEvent(new Event('snackpoints_updated'));
         } catch {}
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        setErrorMsg(errJson.error || 'Unable to load SnackPoints. Please verify your connection.');
       }
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      console.error('Failed to fetch SnackPoints:', e);
+      setErrorMsg('Connection error. Please check your internet connection.');
     } finally {
       setLoading(false);
     }
@@ -55,8 +64,6 @@ export default function SnackPointsPage() {
       const clean = p.replace(/\D/g, '');
       setPhone(clean);
       fetchData(clean);
-    } else {
-      setLoading(false);
     }
   }, [savedPhone]);
 
@@ -100,8 +107,13 @@ export default function SnackPointsPage() {
         </div>
 
         {!data ? (
-          <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center max-w-md mx-auto">
-            <p className="text-sm text-slate-600 mb-4">Enter your 10-digit mobile number to view your SnackPoints.</p>
+          <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center max-w-md mx-auto shadow-sm">
+            <p className="text-sm text-slate-600 mb-4">Enter your 10-digit mobile number to view your SnackPoints balance.</p>
+            {errorMsg && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 text-xs font-semibold rounded-xl text-left">
+                ⚠️ {errorMsg}
+              </div>
+            )}
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -120,25 +132,42 @@ export default function SnackPointsPage() {
                 onChange={(e) => {
                   const val = e.target.value.replace(/\D/g, '').slice(0, 10);
                   setPhone(val);
+                  if (errorMsg) setErrorMsg(null);
                 }}
                 placeholder="9876543210"
                 className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-base font-semibold focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/40"
               />
               <button
                 type="submit"
-                disabled={phone.replace(/\D/g, '').length !== 10}
-                className="px-5 py-3 bg-[#FF6B00] hover:bg-[#EA580C] disabled:bg-slate-300 text-white font-bold rounded-xl text-sm transition active:scale-95"
+                disabled={loading || phone.replace(/\D/g, '').length !== 10}
+                className="px-5 py-3 bg-[#FF6B00] hover:bg-[#EA580C] disabled:bg-slate-300 text-white font-bold rounded-xl text-sm transition active:scale-95 flex items-center justify-center gap-1.5 min-w-[80px]"
               >
-                View
+                {loading ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                ) : (
+                  'View'
+                )}
               </button>
             </form>
           </div>
-        ) : loading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-[#FF6B00]" />
-          </div>
         ) : (
           <div className="space-y-6">
+            <div className="flex items-center justify-between bg-white border border-slate-200 rounded-2xl px-5 py-3 shadow-xs">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                <span className="text-xs font-bold text-slate-700">Phone: +91 {phone}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setData(null);
+                  setErrorMsg(null);
+                }}
+                className="text-xs font-bold text-[#FF6B00] hover:underline"
+              >
+                Check another number
+              </button>
+            </div>
             {/* Balance Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="bg-gradient-to-br from-amber-500 to-orange-600 text-white rounded-2xl p-4 shadow-lg">

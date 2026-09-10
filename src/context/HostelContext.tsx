@@ -36,6 +36,7 @@ const DEFAULT_DELIVERY_SETTINGS: DeliverySettings = {
   freeDeliveryThreshold: 200,
   annexDeliveryEnabled: true,
   noyyalNewDeliveryEnabled: true,
+  noyyalOldDeliveryEnabled: true,
   noyyalDeliveryEnabled: true,
 };
 
@@ -57,7 +58,22 @@ export function HostelProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     try {
       const h = localStorage.getItem('snackora_selected_hostel');
-      if (h) setSelectedHostelState(h);
+      if (h) {
+        // Map old names to new standard names
+        if (h.includes('Noyyal New')) {
+          setSelectedHostelState(HOSTEL_BLOCKS[0]);
+        } else if (h.includes('Noyyal Old') || h.trim() === 'Noyyal' || h.startsWith('Noyyal —')) {
+          setSelectedHostelState(HOSTEL_BLOCKS[1]);
+        } else if (h.includes('Annex')) {
+          setSelectedHostelState(HOSTEL_BLOCKS[2]);
+        } else {
+          const match = HOSTEL_BLOCKS.find((b) => b.startsWith(h.split(' — ')[0]));
+          if (match) setSelectedHostelState(match);
+          else setSelectedHostelState(HOSTEL_BLOCKS[0]);
+        }
+      } else {
+        setSelectedHostelState(HOSTEL_BLOCKS[0]);
+      }
       const r = localStorage.getItem('snackora_saved_room');
       if (r) setSavedRoomState(r);
       const n = localStorage.getItem('snackora_saved_name');
@@ -102,16 +118,16 @@ export function HostelProvider({ children }: { children: React.ReactNode }) {
 
   const isDeliveryAvailable = (hostelName: string): boolean => {
     const name = hostelName.split(' — ')[0].trim();
-    switch (name) {
-      case 'Annex':
-        return deliverySettings.annexDeliveryEnabled;
-      case 'Noyyal New':
-        return deliverySettings.noyyalNewDeliveryEnabled;
-      case 'Noyyal':
-        return deliverySettings.noyyalDeliveryEnabled;
-      default:
-        return false;
+    if (name === 'Annex') {
+      return deliverySettings.annexDeliveryEnabled !== false;
     }
+    if (name === 'Noyyal New Block' || name === 'Noyyal New') {
+      return deliverySettings.noyyalNewDeliveryEnabled !== false;
+    }
+    if (name === 'Noyyal Old Block' || name === 'Noyyal Old' || name === 'Noyyal') {
+      return deliverySettings.noyyalOldDeliveryEnabled !== false && deliverySettings.noyyalDeliveryEnabled !== false;
+    }
+    return true;
   };
 
   const getDeliveryFee = (subtotal: number): number => {
@@ -145,7 +161,8 @@ export function HostelProvider({ children }: { children: React.ReactNode }) {
           freeDeliveryThreshold: data.free_delivery_threshold ? parseFloat(data.free_delivery_threshold) : DEFAULT_DELIVERY_SETTINGS.freeDeliveryThreshold,
           annexDeliveryEnabled: data.annex_delivery_enabled !== 'false',
           noyyalNewDeliveryEnabled: data.noyyal_new_delivery_enabled !== 'false',
-          noyyalDeliveryEnabled: data.noyyal_delivery_enabled !== 'false',
+          noyyalOldDeliveryEnabled: (data.noyyal_old_delivery_enabled !== 'false' && data.noyyal_delivery_enabled !== 'false'),
+          noyyalDeliveryEnabled: (data.noyyal_old_delivery_enabled !== 'false' && data.noyyal_delivery_enabled !== 'false'),
         });
         if (data.whatsapp_group_url) {
           setWhatsappGroupUrl(data.whatsapp_group_url);

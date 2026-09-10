@@ -2,8 +2,8 @@ import prisma from '@/lib/prisma';
 import { HomeClient } from '@/components/home/HomeClient';
 import { Product, Category } from '@/types';
 
-// Force dynamic so admin changes immediately reflect on customer homepage
-export const dynamic = 'force-dynamic';
+// Incremental Static Regeneration: 60-second cache with instant revalidation on admin actions
+export const revalidate = 60;
 
 export default async function HomePage() {
   try {

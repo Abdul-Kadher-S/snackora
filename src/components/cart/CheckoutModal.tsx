@@ -251,20 +251,21 @@ export function CheckoutModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-slate-950/70 backdrop-blur-sm animate-fade-in overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 md:p-6 bg-slate-950/75 backdrop-blur-sm animate-fade-in overflow-hidden">
       <div
-        className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden my-auto animate-scale-up"
+        className="relative w-full max-w-lg bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-100 flex flex-col max-h-[92vh] sm:max-h-[88vh] overflow-hidden animate-scale-up"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-4 md:p-6 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-orange-50 to-amber-50">
+        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-orange-50 to-amber-50 shrink-0">
           <div>
-            <h3 className="text-xl font-black text-slate-900">Checkout</h3>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <h3 className="text-lg sm:text-xl font-black text-slate-900">Checkout</h3>
+            <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
               Enter your details for hostel room delivery
             </p>
           </div>
           <button
+            type="button"
             onClick={() => setIsCheckoutOpen(false)}
             className="w-8 h-8 rounded-full bg-white text-slate-500 hover:text-slate-900 border border-slate-200 flex items-center justify-center transition hover:scale-105 active:scale-95"
             aria-label="Close checkout"
@@ -273,8 +274,8 @@ export function CheckoutModal() {
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-4 md:p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+        {/* Form Body (Scrollable) */}
+        <form id="checkoutForm" onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 overscroll-contain">
           {errorMsg && (
             <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-xs font-semibold text-rose-700 animate-slide-down flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -292,8 +293,9 @@ export function CheckoutModal() {
               value={hostel}
               onChange={(e) => {
                 setHostel(e.target.value);
+                setSelectedHostel(e.target.value);
               }}
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/40 focus:border-[#FF6B00] transition text-slate-800 font-medium"
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/40 focus:border-[#FF6B00] transition text-slate-800 font-semibold"
             >
               {HOSTEL_BLOCKS.map((b) => (
                 <option key={b} value={b}>
@@ -325,7 +327,7 @@ export function CheckoutModal() {
                 validateName(val);
               }}
               placeholder="e.g. Abdul Kadher"
-              className={`w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/40 focus:border-[#FF6B00] transition ${
+              className={`w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/40 focus:border-[#FF6B00] transition font-medium ${
                 nameError ? 'border-rose-300' : 'border-slate-200'
               }`}
             />
@@ -357,7 +359,7 @@ export function CheckoutModal() {
                   }
                 }}
                 placeholder="9876543210"
-                className={`w-full pl-12 pr-3.5 py-2.5 bg-slate-50 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/40 focus:border-[#FF6B00] transition ${
+                className={`w-full pl-12 pr-3.5 py-2.5 bg-slate-50 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/40 focus:border-[#FF6B00] transition font-medium ${
                   phoneError ? 'border-rose-300' : 'border-slate-200'
                 }`}
               />
@@ -529,12 +531,15 @@ export function CheckoutModal() {
               <Currency amount={finalTotal} className="text-xl font-black text-slate-900" />
             </div>
           </div>
+        </form>
 
-          {/* Action Button */}
+        {/* Sticky Action Button Bar (Always on screen) */}
+        <div className="p-3 sm:p-4 border-t border-slate-100 bg-white shrink-0 pb-[max(env(safe-area-inset-bottom,0px),12px)]">
           <button
             type="submit"
+            form="checkoutForm"
             disabled={isSubmitting || !deliveryAvailable}
-            className="w-full py-3.5 bg-[#FF6B00] hover:bg-[#EA580C] disabled:bg-slate-300 text-white font-bold rounded-2xl shadow-xl shadow-orange-500/25 flex items-center justify-center gap-2 transition hover:scale-[1.02] active:scale-[0.98] text-sm"
+            className="w-full py-3.5 bg-[#FF6B00] hover:bg-[#EA580C] disabled:bg-slate-300 text-white font-bold rounded-2xl shadow-xl shadow-orange-500/25 flex items-center justify-center gap-2 transition hover:scale-[1.01] active:scale-[0.98] text-sm"
           >
             {isSubmitting ? (
               <>
@@ -553,7 +558,7 @@ export function CheckoutModal() {
               </>
             )}
           </button>
-        </form>
+        </div>
       </div>
     </div>
   );

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getAdminSession } from '@/lib/auth';
 import { broadcastOrderEvent } from '@/lib/supabase';
+import { sendTelegramOrderNotification } from '@/lib/telegram';
 
 export async function GET(request: NextRequest) {
   try {
@@ -54,20 +55,71 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Generate unique 6-digit order number
+// Generate unique 7-digit order number DDMMNNN (e.g., 1009001) reset daily in IST
 async function generateUniqueOrderNumber(): Promise<string> {
-  for (let attempt = 0; attempt < 20; attempt++) {
-    const num = Math.floor(100000 + Math.random() * 900000);
-    const orderNumber = num.toString();
-    const existing = await prisma.order.findUnique({
-      where: { orderNumber },
+  // Compute current date in Indian Standard Time (UTC + 5:30)
+  const now = new Date();
+  const istDate = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
+  const dd = String(istDate.getUTCDate()).padStart(2, '0');
+  const mm = String(istDate.getUTCMonth() + 1).padStart(2, '0');
+  const prefix = `${dd}${mm}`; // e.g. "1009"
+
+  try {
+    // Find highest order number for today
+    const existingOrdersToday = await prisma.order.findMany({
+      where: {
+        orderNumber: {
+          startsWith: prefix,
+        },
+      },
+      select: {
+        orderNumber: true,
+      },
+      orderBy: {
+        orderNumber: 'desc',
+      },
+      take: 100,
+    });
+
+    let maxSequence = 0;
+    for (const order of existingOrdersToday) {
+      if (order.orderNumber && order.orderNumber.length === 7 && order.orderNumber.startsWith(prefix)) {
+        const seqPart = parseInt(order.orderNumber.slice(4), 10);
+        if (!isNaN(seqPart) && seqPart > maxSequence) {
+          maxSequence = seqPart;
+        }
+      }
+    }
+
+    const nextSeq = maxSequence + 1;
+    const candidate = `${prefix}${String(nextSeq).padStart(3, '0')}`;
+
+    // Verify non-collision
+    const exists = await prisma.order.findUnique({
+      where: { orderNumber: candidate },
       select: { id: true },
     });
-    if (!existing) return orderNumber;
+
+    if (!exists) {
+      return candidate;
+    }
+
+    // If candidate exists due to concurrency, find the next available sequence
+    for (let offset = 1; offset <= 200; offset++) {
+      const altNum = `${prefix}${String(nextSeq + offset).padStart(3, '0')}`;
+      const altExists = await prisma.order.findUnique({
+        where: { orderNumber: altNum },
+        select: { id: true },
+      });
+      if (!altExists) return altNum;
+    }
+  } catch (err) {
+    console.error('Error calculating daily order sequence:', err);
   }
-  // Fallback: use timestamp-based
-  const ts = Date.now().toString().slice(-6);
-  return ts;
+
+  // Fallback 7-digit ID: prefix + 3 random digits
+  const fallbackSeq = Math.floor(100 + Math.random() * 900);
+  return `${prefix}${fallbackSeq}`;
 }
 
 export async function POST(request: NextRequest) {
@@ -104,6 +156,8 @@ export async function POST(request: NextRequest) {
     const hostelName = hostel.split(' — ')[0].trim();
     const deliverySettingKeys: Record<string, string> = {
       'Annex': 'annex_delivery_enabled',
+      'Noyyal New Block': 'noyyal_new_delivery_enabled',
+      'Noyyal Old Block': 'noyyal_delivery_enabled',
       'Noyyal New': 'noyyal_new_delivery_enabled',
       'Noyyal': 'noyyal_delivery_enabled',
     };
@@ -365,6 +419,30 @@ export async function POST(request: NextRequest) {
 
     // Realtime broadcast to Supabase
     broadcastOrderEvent('ORDER_CREATED', createdOrder);
+
+    // Telegram Bot Notification (safe non-blocking dispatch)
+    sendTelegramOrderNotification({
+      orderNumber: createdOrder.orderNumber,
+      customerName: createdOrder.customerName,
+      phone: createdOrder.phone,
+      hostel: createdOrder.hostel,
+      roomNumber: createdOrder.roomNumber,
+      deliveryNote: createdOrder.deliveryNote,
+      items: createdOrder.items.map((i) => ({
+        productName: i.productName,
+        quantity: i.quantity,
+        price: i.price,
+        subtotal: i.subtotal,
+      })),
+      subtotal: createdOrder.subtotal,
+      deliveryFee: createdOrder.deliveryFee,
+      couponDiscount: createdOrder.couponDiscount,
+      total: createdOrder.total,
+      paymentMethod: createdOrder.paymentMethod,
+      freeDeliveryApplied: createdOrder.freeDeliveryApplied,
+    }).catch((tErr) => {
+      console.error('Non-blocking Telegram notification failed:', tErr);
+    });
 
     return NextResponse.json(createdOrder, { status: 201 });
   } catch (error: any) {

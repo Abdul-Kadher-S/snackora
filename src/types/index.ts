@@ -179,7 +179,8 @@ export interface DeliverySettings {
   freeDeliveryThreshold: number;
   annexDeliveryEnabled: boolean;
   noyyalNewDeliveryEnabled: boolean;
-  noyyalDeliveryEnabled: boolean;
+  noyyalOldDeliveryEnabled: boolean;
+  noyyalDeliveryEnabled?: boolean;
 }
 
 export interface ProductFilters {
@@ -211,7 +212,7 @@ export const COUPON_VALIDITY_DAYS = 7;
 
 // Hostel blocks
 export const HOSTEL_BLOCKS_CONFIG = [
+  { name: 'Noyyal New Block', timing: 'Anytime' },
+  { name: 'Noyyal Old Block', timing: 'Anytime' },
   { name: 'Annex', timing: 'Fixed Time' },
-  { name: 'Noyyal New', timing: 'Anytime' },
-  { name: 'Noyyal', timing: 'Anytime' },
 ] as const;

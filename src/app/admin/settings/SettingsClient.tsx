@@ -185,8 +185,8 @@ export function SettingsClient() {
             <div className="space-y-3">
               {[
                 { label: 'Annex — Fixed Time', value: annexDelivery, setter: setAnnexDelivery },
-                { label: 'Noyyal New — Anytime', value: noyyalNewDelivery, setter: setNoyyalNewDelivery },
-                { label: 'Noyyal — Anytime', value: noyyalDelivery, setter: setNoyyalDelivery },
+                { label: 'Noyyal New Block — Anytime', value: noyyalNewDelivery, setter: setNoyyalNewDelivery },
+                { label: 'Noyyal Old Block — Anytime', value: noyyalDelivery, setter: setNoyyalDelivery },
               ].map((hostel) => (
                 <div key={hostel.label} className="flex items-center justify-between bg-slate-900 rounded-xl px-4 py-3 border border-slate-700">
                   <span className="text-sm font-semibold text-white">{hostel.label}</span>
