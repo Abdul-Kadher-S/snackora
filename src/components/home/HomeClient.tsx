@@ -10,7 +10,7 @@ import { HeroBanner } from '@/components/home/HeroBanner';
 import { CategoryCarousel } from '@/components/home/CategoryCarousel';
 import { CuratedProductRow } from '@/components/home/CuratedProductRow';
 import { ProductDetailModal } from '@/components/products/ProductDetailModal';
-import { Sparkles, Flame, Moon, Coins, Heart, Globe, Coffee, Package, PartyPopper } from 'lucide-react';
+import { Sparkles, Flame, Moon, Coins, Heart, Globe, Coffee, Package } from 'lucide-react';
 import Link from 'next/link';
 
 interface HomeClientProps {
@@ -74,34 +74,6 @@ export function HomeClient({ categories, products }: HomeClientProps) {
 
         {/* Categories Bar */}
         <CategoryCarousel categories={categories} />
-
-        {/* Promo Banner Strip */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="bg-gradient-to-r from-orange-500 via-amber-500 to-[#FF6B00] rounded-2xl p-4 md:p-6 text-white shadow-lg shadow-orange-500/15 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3 text-center sm:text-left">
-              <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0">
-                <PartyPopper className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <span className="text-xs uppercase font-bold tracking-wider opacity-90 block">
-                  Campus Special Offer
-                </span>
-                <h4 className="text-base sm:text-lg font-black tracking-tight">
-                  Flat ₹30 OFF On Your First Room Delivery!
-                </h4>
-                <p className="text-xs opacity-90">
-                  Use coupon code <strong className="underline underline-offset-2">SNACKORA30</strong> during checkout.
-                </p>
-              </div>
-            </div>
-            <Link
-              href="/search?category=combos"
-              className="px-5 py-2.5 bg-slate-950 hover:bg-slate-900 text-white font-bold rounded-xl text-xs sm:text-sm shadow-md transition hover:scale-105 active:scale-95 shrink-0"
-            >
-              Order Combos
-            </Link>
-          </div>
-        </div>
 
         {/* 1. Popular Near You */}
         <CuratedProductRow

@@ -48,11 +48,20 @@ export async function DELETE(
     }
 
     const { id } = await params;
-    await prisma.category.delete({
-      where: { id },
+
+    await prisma.$transaction(async (tx) => {
+      // Cleanly delete all associated products in category first
+      await tx.product.deleteMany({
+        where: { categoryId: id },
+      });
+
+      // Delete the category
+      await tx.category.delete({
+        where: { id },
+      });
     });
 
-    return NextResponse.json({ success: true, message: 'Category deleted' });
+    return NextResponse.json({ success: true, message: 'Category deleted successfully' });
   } catch (error: any) {
     console.error('Error deleting category:', error);
     return NextResponse.json({ error: error.message || 'Failed to delete category' }, { status: 500 });
