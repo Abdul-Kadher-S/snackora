@@ -420,29 +420,31 @@ export async function POST(request: NextRequest) {
     // Realtime broadcast to Supabase
     broadcastOrderEvent('ORDER_CREATED', createdOrder);
 
-    // Telegram Bot Notification (safe non-blocking dispatch)
-    sendTelegramOrderNotification({
-      orderNumber: createdOrder.orderNumber,
-      customerName: createdOrder.customerName,
-      phone: createdOrder.phone,
-      hostel: createdOrder.hostel,
-      roomNumber: createdOrder.roomNumber,
-      deliveryNote: createdOrder.deliveryNote,
-      items: createdOrder.items.map((i) => ({
-        productName: i.productName,
-        quantity: i.quantity,
-        price: i.price,
-        subtotal: i.subtotal,
-      })),
-      subtotal: createdOrder.subtotal,
-      deliveryFee: createdOrder.deliveryFee,
-      couponDiscount: createdOrder.couponDiscount,
-      total: createdOrder.total,
-      paymentMethod: createdOrder.paymentMethod,
-      freeDeliveryApplied: createdOrder.freeDeliveryApplied,
-    }).catch((tErr) => {
-      console.error('Non-blocking Telegram notification failed:', tErr);
-    });
+    // Telegram Bot Notification (await before lambda termination)
+    try {
+      await sendTelegramOrderNotification({
+        orderNumber: createdOrder.orderNumber,
+        customerName: createdOrder.customerName,
+        phone: createdOrder.phone,
+        hostel: createdOrder.hostel,
+        roomNumber: createdOrder.roomNumber,
+        deliveryNote: createdOrder.deliveryNote,
+        items: createdOrder.items.map((i) => ({
+          productName: i.productName,
+          quantity: i.quantity,
+          price: i.price,
+          subtotal: i.subtotal,
+        })),
+        subtotal: createdOrder.subtotal,
+        deliveryFee: createdOrder.deliveryFee,
+        couponDiscount: createdOrder.couponDiscount,
+        total: createdOrder.total,
+        paymentMethod: createdOrder.paymentMethod,
+        freeDeliveryApplied: createdOrder.freeDeliveryApplied,
+      });
+    } catch (tErr) {
+      console.error('Telegram notification error:', tErr);
+    }
 
     return NextResponse.json(createdOrder, { status: 201 });
   } catch (error: any) {

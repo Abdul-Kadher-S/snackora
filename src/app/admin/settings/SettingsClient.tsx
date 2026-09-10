@@ -1,7 +1,5 @@
-'use client';
-
 import React, { useState, useEffect } from 'react';
-import { Power, Clock, Bell, Save, Loader2, Truck, MessageCircle, AlertCircle } from 'lucide-react';
+import { Power, Clock, Bell, Save, Loader2, Truck, MessageCircle, AlertCircle, Send } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 
 export function SettingsClient() {
@@ -19,6 +17,7 @@ export function SettingsClient() {
   
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [testingTelegram, setTestingTelegram] = useState(false);
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
 
@@ -248,6 +247,69 @@ export function SettingsClient() {
           </button>
         </div>
       </form>
+
+      {/* Telegram Bot Diagnostic Tool */}
+      <div className="bg-slate-800/90 border border-slate-700/80 rounded-3xl p-6 shadow-xl space-y-4">
+        <div className="flex items-center gap-2 border-b border-slate-700 pb-3">
+          <Send className="w-5 h-5 text-sky-400" />
+          <h3 className="text-base font-black text-white">Telegram Order Bot Diagnostic</h3>
+        </div>
+        <p className="text-xs text-slate-300 leading-relaxed">
+          Verify if your Vercel environment variables (<code className="text-sky-400 bg-slate-900 px-1 py-0.5 rounded">TELEGRAM_BOT_TOKEN</code> and <code className="text-sky-400 bg-slate-900 px-1 py-0.5 rounded">TELEGRAM_CHAT_ID</code>) are active and test sending a live alert.
+        </p>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            disabled={testingTelegram}
+            onClick={async () => {
+              setTestingTelegram(true);
+              try {
+                const res = await fetch('/api/admin/test-telegram');
+                const data = await res.json();
+                if (res.ok && data.success) {
+                  showToast('Test notification delivered to Telegram! 🚀', 'success');
+                  alert(`✅ SUCCESS!\n\n${data.message}\n\nCheck your Telegram group/chat for the test message!`);
+                } else {
+                  const errorMsg = data.hint || data.error || (data.telegramError && data.telegramError.description) || 'Failed to send test alert';
+                  showToast(errorMsg, 'error');
+                  alert(`❌ TELEGRAM DIAGNOSTIC ERROR:\n\n${errorMsg}\n\n${data.details ? JSON.stringify(data.details, null, 2) : ''}\n\n👉 NOTE: If you just added environment variables in Vercel, you MUST Redeploy your project in Vercel Dashboard for them to take effect!`);
+                }
+              } catch (err: any) {
+                console.error(err);
+                showToast('Failed to connect to Telegram test endpoint', 'error');
+              } finally {
+                setTestingTelegram(false);
+              }
+            }}
+            className="px-5 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 transition active:scale-95 disabled:opacity-50"
+          >
+            {testingTelegram ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Testing Telegram Connection...</span>
+              </>
+            ) : (
+              <>
+                <Send className="w-4 h-4" />
+                <span>Send Test Telegram Alert</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        <div className="bg-slate-900/80 rounded-2xl p-4 border border-slate-700/60 text-xs space-y-2 text-slate-300">
+          <p className="font-bold text-white flex items-center gap-1.5">
+            <span>ℹ️</span> Why messages might not arrive:
+          </p>
+          <ul className="list-disc list-inside space-y-1 text-slate-400 pl-1">
+            <li><strong>Vercel Redeploy needed:</strong> After adding environment variables in Vercel Settings, you <em>must</em> trigger a Redeploy (Deployments → Redeploy) or push a git commit.</li>
+            <li><strong>Group permissions:</strong> If sending to a Telegram Group, the bot must be added into the group and granted <strong>Admin permissions</strong>.</li>
+            <li><strong>Negative Chat ID:</strong> Telegram group chat IDs always start with a minus sign (e.g., <code className="text-amber-300">-100xxxxxxxxxx</code>).</li>
+            <li><strong>Direct chat:</strong> If sending to a private chat, you must press <strong>/start</strong> in the bot first.</li>
+          </ul>
+        </div>
+      </div>
 
       {/* Danger Zone: Clear Store Data */}
       <div className="bg-rose-950/40 border border-rose-800/60 rounded-3xl p-6 shadow-xl space-y-4">
