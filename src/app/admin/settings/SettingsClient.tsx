@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Power, Clock, Bell, Save, Loader2, Truck, MessageCircle } from 'lucide-react';
+import { Power, Clock, Bell, Save, Loader2, Truck, MessageCircle, AlertCircle } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 
 export function SettingsClient() {
@@ -18,6 +18,7 @@ export function SettingsClient() {
   const [whatsappUrl, setWhatsappUrl] = useState('https://chat.whatsapp.com/IwYuJsn8xTF5UDL1uk8hqb?s=cl&p=a&mlu=4&ilr=4');
   
   const [saving, setSaving] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
 
@@ -247,6 +248,62 @@ export function SettingsClient() {
           </button>
         </div>
       </form>
+
+      {/* Danger Zone: Clear Store Data */}
+      <div className="bg-rose-950/40 border border-rose-800/60 rounded-3xl p-6 shadow-xl space-y-4">
+        <div className="flex items-center gap-2 border-b border-rose-900/60 pb-3">
+          <AlertCircle className="w-5 h-5 text-rose-400" />
+          <h3 className="text-base font-black text-white">Danger Zone: Reset Store Data</h3>
+        </div>
+        <p className="text-xs text-rose-200/80 leading-relaxed">
+          Wipe all dummy/existing categories, products, orders, coupons, and customer history. Use this to completely reset your store before launching.
+        </p>
+        <div>
+          <button
+            type="button"
+            disabled={resetting}
+            onClick={async () => {
+              const confirmation = window.prompt(
+                'Type "RESET" to confirm deleting ALL products, categories, orders, and dummy data permanently:'
+              );
+              if (confirmation !== 'RESET') {
+                if (confirmation !== null) alert('Action cancelled. You must type RESET in all caps.');
+                return;
+              }
+
+              setResetting(true);
+              try {
+                const res = await fetch('/api/admin/reset-database', { method: 'POST' });
+                if (res.ok) {
+                  const data = await res.json();
+                  showToast(data.message || 'All store data cleared!', 'success');
+                  setTimeout(() => {
+                    window.location.reload();
+                  }, 1200);
+                } else {
+                  const err = await res.json();
+                  showToast(err.error || 'Failed to reset store data', 'error');
+                }
+              } catch (err: any) {
+                console.error(err);
+                showToast('Failed to connect to reset API', 'error');
+              } finally {
+                setResetting(false);
+              }
+            }}
+            className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs flex items-center gap-2 transition active:scale-95 disabled:opacity-50"
+          >
+            {resetting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Clearing Store Data...</span>
+              </>
+            ) : (
+              <span>🗑️ Delete All Categories, Products & Orders</span>
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

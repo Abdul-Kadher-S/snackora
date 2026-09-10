@@ -154,6 +154,21 @@ export function HomeClient({ categories, products }: HomeClientProps) {
           viewAllHref="/search?sortBy=newest"
           onOpenDetails={(p) => setSelectedProduct(p)}
         />
+
+        {/* Empty Catalog Notice */}
+        {products.length === 0 && (
+          <div className="max-w-md mx-auto px-4 py-20 text-center space-y-3">
+            <div className="w-16 h-16 rounded-3xl bg-orange-100 text-[#FF6B00] flex items-center justify-center mx-auto shadow-sm">
+              <Package className="w-8 h-8" />
+            </div>
+            <h3 className="text-xl font-black text-slate-900 tracking-tight">
+              Fresh Snacks Coming Soon!
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
+              Our campus snack menu is being refreshed. You will be able to order right from your room as soon as items are listed!
+            </p>
+          </div>
+        )}
       </main>
 
       <Footer />
