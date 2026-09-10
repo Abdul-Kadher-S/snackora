@@ -95,7 +95,7 @@ export function CartDrawer() {
   const deliveryOk = isDeliveryAvailable(selectedHostel);
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/60 backdrop-blur-xs animate-fade-in overflow-hidden">
+    <div className="fixed inset-0 z-[100] flex justify-end bg-slate-950/60 backdrop-blur-xs animate-fade-in overflow-hidden">
       <div className="hidden sm:block flex-1" onClick={() => setIsCartOpen(false)} />
 
       <div className="relative w-full sm:max-w-md bg-white h-[100dvh] max-h-[100dvh] shadow-2xl flex flex-col animate-slide-down overflow-hidden">

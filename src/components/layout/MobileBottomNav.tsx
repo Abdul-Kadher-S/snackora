@@ -8,10 +8,10 @@ import { Home, Search, Ticket, ShoppingBag, ClipboardList } from 'lucide-react';
 
 export function MobileBottomNav() {
   const pathname = usePathname();
-  const { totalItems, setIsCartOpen } = useCart();
+  const { totalItems, setIsCartOpen, isCartOpen, isCheckoutOpen } = useCart();
 
-  // Don't show on admin
-  if (pathname.startsWith('/admin')) return null;
+  // Don't show on admin or when cart/checkout modals are open
+  if (pathname.startsWith('/admin') || isCartOpen || isCheckoutOpen) return null;
 
   const navItems = [
     { href: '/', label: 'Home', icon: Home, exact: true },
@@ -27,7 +27,7 @@ export function MobileBottomNav() {
 
   return (
     <nav
-      className="lg:hidden fixed bottom-0 left-0 right-0 z-[60] bg-white/98 backdrop-blur-lg border-t border-slate-200/90 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]"
+      className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/98 backdrop-blur-lg border-t border-slate-200/90 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]"
       style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 6px)' }}
     >
       <div className="flex items-center justify-around h-[62px] max-w-lg mx-auto px-1">
