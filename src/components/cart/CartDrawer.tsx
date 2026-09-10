@@ -98,9 +98,9 @@ export function CartDrawer() {
     <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/60 backdrop-blur-xs animate-fade-in overflow-hidden">
       <div className="hidden sm:block flex-1" onClick={() => setIsCartOpen(false)} />
 
-      <div className="relative w-full sm:max-w-md bg-white h-full shadow-2xl flex flex-col animate-slide-down overflow-hidden">
+      <div className="relative w-full sm:max-w-md bg-white h-[100dvh] max-h-[100dvh] shadow-2xl flex flex-col animate-slide-down overflow-hidden">
         {/* Header */}
-        <div className="p-4 md:p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-orange-50 to-amber-50">
+        <div className="shrink-0 p-4 md:p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-orange-50 to-amber-50">
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-lg font-black text-slate-900">Your Cart</h3>
@@ -115,7 +115,7 @@ export function CartDrawer() {
           </div>
           <button
             onClick={() => setIsCartOpen(false)}
-            className="w-9 h-9 rounded-full bg-white text-slate-500 hover:text-slate-900 border border-slate-200 flex items-center justify-center transition hover:scale-105 active:scale-95"
+            className="w-9 h-9 rounded-full bg-white text-slate-500 hover:text-slate-900 border border-slate-200 flex items-center justify-center transition hover:scale-105 active:scale-95 cursor-pointer"
             aria-label="Close cart"
           >
             <X className="w-5 h-5" />
@@ -123,7 +123,7 @@ export function CartDrawer() {
         </div>
 
         {/* Free Delivery Progress */}
-        <div className={`px-4 py-2.5 border-b flex items-center gap-2 text-xs font-semibold ${
+        <div className={`shrink-0 px-4 py-2.5 border-b flex items-center gap-2 text-xs font-semibold ${
           freeRemaining > 0
             ? 'bg-blue-50 border-blue-100 text-blue-800'
             : 'bg-emerald-50 border-emerald-100 text-emerald-800'
@@ -146,13 +146,13 @@ export function CartDrawer() {
 
         {/* Delivery unavailable warning */}
         {!deliveryOk && (
-          <div className="px-4 py-2.5 bg-rose-50 border-b border-rose-100 text-xs text-rose-700 font-semibold">
+          <div className="shrink-0 px-4 py-2.5 bg-rose-50 border-b border-rose-100 text-xs text-rose-700 font-semibold">
             🚫 Delivery is currently unavailable for {hostelName}.
           </div>
         )}
 
         {/* Cart Content: Items & Coupons */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-5 space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-5 space-y-4 overscroll-contain">
           {cart.length === 0 ? (
             <EmptyState
               type="cart"
@@ -350,7 +350,7 @@ export function CartDrawer() {
 
         {/* Footer */}
         {cart.length > 0 && (
-          <div className="p-4 md:p-5 border-t border-slate-100 bg-slate-50/90 flex flex-col gap-3">
+          <div className="shrink-0 p-4 md:p-5 border-t border-slate-200 bg-white flex flex-col gap-3 shadow-[0_-6px_20px_rgba(0,0,0,0.06)] pb-7 sm:pb-5 z-20">
             <div className="space-y-1.5 text-xs text-slate-600">
               <div className="flex justify-between">
                 <span>Subtotal</span>
@@ -375,12 +375,13 @@ export function CartDrawer() {
             </div>
 
             <button
+              type="button"
               onClick={() => {
                 setIsCartOpen(false);
                 setIsCheckoutOpen(true);
               }}
               disabled={!deliveryOk}
-              className="w-full py-3.5 bg-[#FF6B00] hover:bg-[#EA580C] disabled:bg-slate-300 text-white font-bold rounded-2xl shadow-xl shadow-orange-500/25 flex items-center justify-center gap-2 transition hover:scale-[1.02] active:scale-[0.98] text-sm"
+              className="w-full py-3.5 bg-[#FF6B00] hover:bg-[#EA580C] disabled:bg-slate-300 text-white font-bold rounded-2xl shadow-xl shadow-orange-500/25 flex items-center justify-center gap-2 transition hover:scale-[1.01] active:scale-[0.98] text-sm cursor-pointer disabled:cursor-not-allowed select-none touch-manipulation"
             >
               <span>
                 {deliveryOk

@@ -150,48 +150,49 @@ export function Navbar() {
           </nav>
 
           {/* Right Action buttons */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1 sm:gap-2.5 shrink-0">
             {/* Search Quick Button for small screens */}
             <Link
               href="/search"
-              className="lg:hidden p-2 text-slate-600 hover:text-slate-900 rounded-full hover:bg-slate-100 transition"
+              className="lg:hidden p-1.5 sm:p-2 text-slate-600 hover:text-slate-900 rounded-full hover:bg-slate-100 transition shrink-0"
               aria-label="Search"
             >
-              <Search className="w-5 h-5" />
+              <Search className="w-4 h-4 sm:w-5 sm:h-5" />
             </Link>
 
-            {/* SnackPoints Dynamic Balance Badge (Visible directly near Cart) */}
+            {/* SnackPoints Dynamic Balance Badge (Compact on mobile) */}
             <Link
               href="/snackpoints"
-              className="flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-slate-950 font-black rounded-2xl shadow-md shadow-amber-500/20 text-xs sm:text-sm transition hover:scale-105 active:scale-95 group shrink-0"
+              className="flex items-center gap-1 sm:gap-1.5 px-2 py-1.5 sm:px-3 sm:py-2 bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-slate-950 font-black rounded-xl sm:rounded-2xl shadow-sm text-xs sm:text-sm transition hover:scale-105 active:scale-95 group shrink-0"
               title="View your Available SnackPoints"
             >
-              <Star className="w-4 h-4 fill-slate-950 text-slate-950 shrink-0 group-hover:rotate-12 transition-transform" />
-              <span className="hidden sm:inline font-bold text-slate-900/90">SnackPoints:</span>
-              <span className="bg-white/40 px-1.5 py-0.5 rounded-lg font-black text-slate-950">
-                {pointsBalance !== null ? pointsBalance : 0} pts
+              <Star className="w-3.5 h-3.5 fill-slate-950 text-slate-950 shrink-0 group-hover:rotate-12 transition-transform" />
+              <span className="hidden md:inline font-bold text-slate-900/90">SnackPoints:</span>
+              <span className="bg-white/50 px-1.5 py-0.5 rounded font-black text-[11px] sm:text-xs text-slate-950">
+                {pointsBalance !== null ? pointsBalance : 0}
+                <span className="hidden sm:inline"> pts</span>
               </span>
             </Link>
 
             {/* Notifications */}
             <Link
               href="/notifications"
-              className="p-2 text-slate-600 hover:text-slate-900 rounded-full hover:bg-slate-100 transition relative"
+              className="p-1.5 sm:p-2 text-slate-600 hover:text-slate-900 rounded-full hover:bg-slate-100 transition relative shrink-0"
               aria-label="Notifications"
             >
-              <Bell className="w-5 h-5" />
+              <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
             </Link>
 
-            {/* Cart Button */}
+            {/* Cart Button (Always fully visible, never clipped) */}
             <button
               onClick={() => setIsCartOpen(true)}
-              className="relative px-3.5 sm:px-4 py-2 bg-[#FF6B00] hover:bg-[#EA580C] text-white font-bold rounded-2xl shadow-lg shadow-orange-500/20 flex items-center gap-2 text-xs sm:text-sm transition hover:scale-105 active:scale-95"
+              className="relative px-2.5 sm:px-4 py-1.5 sm:py-2 bg-[#FF6B00] hover:bg-[#EA580C] text-white font-bold rounded-xl sm:rounded-2xl shadow-md shadow-orange-500/20 flex items-center gap-1.5 text-xs sm:text-sm transition hover:scale-105 active:scale-95 shrink-0"
               aria-label="View shopping cart"
             >
-              <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5" />
+              <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
               <span className="hidden sm:inline">Cart</span>
               {totalItems > 0 && (
-                <span className="w-5 h-5 rounded-full bg-white text-[#FF6B00] text-xs font-black flex items-center justify-center shadow-xs animate-bounce">
+                <span className="min-w-[18px] h-[18px] sm:min-w-[20px] sm:h-5 px-1 rounded-full bg-white text-[#FF6B00] text-[10px] sm:text-xs font-black flex items-center justify-center shadow-xs">
                   {totalItems}
                 </span>
               )}
