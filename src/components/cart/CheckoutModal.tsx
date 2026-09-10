@@ -253,7 +253,7 @@ export function CheckoutModal() {
   return (
     <div className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center p-0 sm:p-4 md:p-6 bg-slate-950/75 backdrop-blur-sm animate-fade-in overflow-hidden">
       <div
-        className="relative w-full max-w-lg bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-100 flex flex-col max-h-[92vh] sm:max-h-[88vh] overflow-hidden animate-scale-up"
+        className="relative w-full max-w-lg bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-100 flex flex-col h-[90dvh] max-h-[90dvh] sm:h-auto sm:max-h-[88vh] overflow-hidden animate-scale-up"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -267,21 +267,23 @@ export function CheckoutModal() {
           <button
             type="button"
             onClick={() => setIsCheckoutOpen(false)}
-            className="w-8 h-8 rounded-full bg-white text-slate-500 hover:text-slate-900 border border-slate-200 flex items-center justify-center transition hover:scale-105 active:scale-95"
+            className="w-8 h-8 rounded-full bg-white text-slate-500 hover:text-slate-900 border border-slate-200 flex items-center justify-center transition hover:scale-105 active:scale-95 cursor-pointer"
             aria-label="Close checkout"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Form Body (Scrollable) */}
-        <form id="checkoutForm" onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 overscroll-contain">
-          {errorMsg && (
-            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-xs font-semibold text-rose-700 animate-slide-down flex items-start gap-2">
-              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>{errorMsg}</span>
-            </div>
-          )}
+        {/* Form Container */}
+        <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          {/* Form Scrollable Body */}
+          <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 overscroll-contain">
+            {errorMsg && (
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-xs font-semibold text-rose-700 animate-slide-down flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
 
           {/* Hostel / Block Dropdown */}
           <div>
@@ -531,15 +533,14 @@ export function CheckoutModal() {
               <Currency amount={finalTotal} className="text-xl font-black text-slate-900" />
             </div>
           </div>
-        </form>
+        </div>
 
-        {/* Sticky Action Button Bar (Always on screen) */}
-        <div className="p-3 sm:p-4 border-t border-slate-100 bg-white shrink-0 pb-[max(env(safe-area-inset-bottom,0px),12px)]">
+        {/* Sticky Action Button Bar (Always on screen inside form) */}
+        <div className="p-3.5 sm:p-4 border-t border-slate-200 bg-white shrink-0 pb-[max(env(safe-area-inset-bottom,0px),16px)] shadow-[0_-6px_20px_rgba(0,0,0,0.06)] z-20">
           <button
             type="submit"
-            form="checkoutForm"
             disabled={isSubmitting || !deliveryAvailable}
-            className="w-full py-3.5 bg-[#FF6B00] hover:bg-[#EA580C] disabled:bg-slate-300 text-white font-bold rounded-2xl shadow-xl shadow-orange-500/25 flex items-center justify-center gap-2 transition hover:scale-[1.01] active:scale-[0.98] text-sm"
+            className="w-full py-4 bg-[#FF6B00] hover:bg-[#EA580C] disabled:bg-slate-300 text-white font-bold rounded-2xl shadow-xl shadow-orange-500/25 flex items-center justify-center gap-2 transition hover:scale-[1.01] active:scale-[0.98] text-sm cursor-pointer disabled:cursor-not-allowed select-none touch-manipulation"
           >
             {isSubmitting ? (
               <>
@@ -559,7 +560,8 @@ export function CheckoutModal() {
             )}
           </button>
         </div>
-      </div>
+      </form>
     </div>
-  );
+  </div>
+);
 }
