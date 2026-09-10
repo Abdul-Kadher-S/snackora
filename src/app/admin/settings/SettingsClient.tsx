@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
 import { Power, Clock, Bell, Save, Loader2, Truck, MessageCircle, AlertCircle, Send } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
