@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { Order, OrderStatus } from '@/types';
 import { Currency } from '@/components/ui/Currency';
 import {
@@ -19,6 +20,7 @@ import {
   XCircle,
   MessageSquare,
   Banknote,
+  Send,
 } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 import { useRealtimeOrders } from '@/hooks/useRealtimeOrders';
@@ -70,13 +72,10 @@ export function OrdersClient() {
     onOrderUpdated: (updatedOrder) => {
       fetchOrders(true);
     },
-    onSync: () => {
-      fetchOrders(true);
-    },
   });
 
   useEffect(() => {
-    fetchOrders();
+    fetchOrders(false);
   }, [statusFilter]);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -84,17 +83,17 @@ export function OrdersClient() {
     fetchOrders();
   };
 
-  const handleUpdateStatus = async (orderId: string, newStatus: OrderStatus) => {
+  const handleUpdateStatus = async (orderId: string, status: OrderStatus) => {
     try {
       const res = await fetch(`/api/orders/${orderId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ status }),
       });
 
       if (res.ok) {
-        showToast(`Order status updated to ${newStatus.replace(/_/g, ' ')}`, 'success');
-        fetchOrders();
+        showToast(`Order status updated to ${status.replace(/_/g, ' ')}`, 'success');
+        fetchOrders(true);
       } else {
         const err = await res.json();
         showToast(err.error || 'Failed to update order status', 'error');
@@ -117,7 +116,16 @@ export function OrdersClient() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-auto">
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0 self-start sm:self-auto">
+          {/* Telegram Alerts Test Link */}
+          <Link
+            href="/admin/telegram"
+            className="px-3.5 py-2 bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 hover:text-sky-200 border border-sky-500/40 rounded-xl transition flex items-center gap-1.5 text-xs font-bold"
+          >
+            <Send className="w-3.5 h-3.5" />
+            <span>Telegram Bot Test</span>
+          </Link>
+
           {/* Realtime Live Indicator Badge */}
           <div
             className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-2 ${

@@ -20,6 +20,7 @@ import {
   MessageSquare,
   Truck,
   Cookie,
+  Send,
 } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 
@@ -35,6 +36,7 @@ const NAV_ITEMS = [
   { href: '/admin/inventory', label: 'Inventory', icon: ClipboardList },
   { href: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/admin/offers', label: 'Offers', icon: Ticket },
+  { href: '/admin/telegram', label: 'Telegram Alerts 🔔', icon: Send },
   { href: '/admin/settings', label: 'Settings', icon: Settings },
 ];
 
