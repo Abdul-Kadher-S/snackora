@@ -108,6 +108,7 @@ ${feeLine}${discountLine}
         parse_mode: 'HTML',
         disable_web_page_preview: true,
       }),
+      signal: AbortSignal.timeout(5000),
     });
 
     if (!response.ok) {

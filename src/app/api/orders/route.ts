@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getAdminSession } from '@/lib/auth';
 import { broadcastOrderEvent } from '@/lib/supabase';
@@ -66,7 +66,7 @@ async function generateUniqueOrderNumber(): Promise<string> {
 
   try {
     // Find highest order number for today
-    const existingOrdersToday = await prisma.order.findMany({
+    const latestOrderToday = await prisma.order.findFirst({
       where: {
         orderNumber: {
           startsWith: prefix,
@@ -78,16 +78,13 @@ async function generateUniqueOrderNumber(): Promise<string> {
       orderBy: {
         orderNumber: 'desc',
       },
-      take: 100,
     });
 
     let maxSequence = 0;
-    for (const order of existingOrdersToday) {
-      if (order.orderNumber && order.orderNumber.length === 7 && order.orderNumber.startsWith(prefix)) {
-        const seqPart = parseInt(order.orderNumber.slice(4), 10);
-        if (!isNaN(seqPart) && seqPart > maxSequence) {
-          maxSequence = seqPart;
-        }
+    if (latestOrderToday?.orderNumber && latestOrderToday.orderNumber.length === 7 && latestOrderToday.orderNumber.startsWith(prefix)) {
+      const seqPart = parseInt(latestOrderToday.orderNumber.slice(4), 10);
+      if (!isNaN(seqPart) && seqPart > 0) {
+        maxSequence = seqPart;
       }
     }
 
@@ -152,7 +149,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Please select your hostel block.' }, { status: 400 });
     }
 
-    // === HOSTEL DELIVERY AVAILABILITY CHECK ===
+    // === HOSTEL DELIVERY AVAILABILITY KEY ===
     const hostelName = hostel.split(' — ')[0].trim();
     const deliverySettingKeys: Record<string, string> = {
       'Annex': 'annex_delivery_enabled',
@@ -162,15 +159,7 @@ export async function POST(request: NextRequest) {
       'Noyyal': 'noyyal_delivery_enabled',
     };
     const settingKey = deliverySettingKeys[hostelName];
-    if (settingKey) {
-      const setting = await prisma.storeSetting.findUnique({ where: { key: settingKey } });
-      if (setting && setting.value === 'false') {
-        return NextResponse.json(
-          { error: `🚫 Delivery is currently unavailable for ${hostelName}. Please try again later.` },
-          { status: 400 }
-        );
-      }
-    } else {
+    if (!settingKey) {
       return NextResponse.json({ error: 'Invalid hostel block selected.' }, { status: 400 });
     }
 
@@ -184,11 +173,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Your cart is empty. Please add snacks to place an order.' }, { status: 400 });
     }
 
-    // === FETCH PRODUCTS & VALIDATE STOCK ===
+    // === BATCH FETCH PRODUCTS & SETTINGS IN PARALLEL ===
     const productIds = items.map((i: any) => i.productId);
-    const dbProducts = await prisma.product.findMany({
-      where: { id: { in: productIds } },
-    });
+    const neededSettings = [settingKey, 'delivery_charge', 'free_delivery_threshold'];
+
+    const [dbProducts, settingsList] = await Promise.all([
+      prisma.product.findMany({
+        where: { id: { in: productIds } },
+      }),
+      prisma.storeSetting.findMany({
+        where: { key: { in: neededSettings } },
+      }),
+    ]);
+
+    const settingsMap = new Map(settingsList.map((s) => [s.key, s.value]));
+
+    // Check hostel delivery availability
+    const hostelSettingVal = settingsMap.get(settingKey);
+    if (hostelSettingVal === 'false') {
+      return NextResponse.json(
+        { error: `🚫 Delivery is currently unavailable for ${hostelName}. Please try again later.` },
+        { status: 400 }
+      );
+    }
 
     const productMap = new Map(dbProducts.map((p) => [p.id, p]));
 
@@ -247,11 +254,11 @@ export async function POST(request: NextRequest) {
     }
 
     // === DELIVERY FEE CALCULATION ===
-    const deliveryChargeSetting = await prisma.storeSetting.findUnique({ where: { key: 'delivery_charge' } });
-    const freeThresholdSetting = await prisma.storeSetting.findUnique({ where: { key: 'free_delivery_threshold' } });
+    const deliveryChargeVal = settingsMap.get('delivery_charge');
+    const freeThresholdVal = settingsMap.get('free_delivery_threshold');
 
-    const deliveryChargeAmount = deliveryChargeSetting ? parseFloat(deliveryChargeSetting.value) : 20;
-    const freeThreshold = freeThresholdSetting ? parseFloat(freeThresholdSetting.value) : 200;
+    const deliveryChargeAmount = deliveryChargeVal ? parseFloat(deliveryChargeVal) : 20;
+    const freeThreshold = freeThresholdVal ? parseFloat(freeThresholdVal) : 200;
 
     // Free delivery based on subtotal BEFORE coupon
     const freeDeliveryApplied = calculatedSubtotal >= freeThreshold;
@@ -417,34 +424,41 @@ export async function POST(request: NextRequest) {
       return newOrder;
     });
 
-    // Realtime broadcast to Supabase
-    broadcastOrderEvent('ORDER_CREATED', createdOrder);
+    // Realtime broadcast and Telegram Bot Notification dispatched via Next.js after()
+    // This allows the student's checkout to complete instantaneously (< 500ms)
+    // while external network notifications proceed safely in the background.
+    after(async () => {
+      try {
+        await broadcastOrderEvent('ORDER_CREATED', createdOrder);
+      } catch (bErr) {
+        console.error('Realtime broadcast error:', bErr);
+      }
 
-    // Telegram Bot Notification (await before lambda termination)
-    try {
-      await sendTelegramOrderNotification({
-        orderNumber: createdOrder.orderNumber,
-        customerName: createdOrder.customerName,
-        phone: createdOrder.phone,
-        hostel: createdOrder.hostel,
-        roomNumber: createdOrder.roomNumber,
-        deliveryNote: createdOrder.deliveryNote,
-        items: createdOrder.items.map((i) => ({
-          productName: i.productName,
-          quantity: i.quantity,
-          price: i.price,
-          subtotal: i.subtotal,
-        })),
-        subtotal: createdOrder.subtotal,
-        deliveryFee: createdOrder.deliveryFee,
-        couponDiscount: createdOrder.couponDiscount,
-        total: createdOrder.total,
-        paymentMethod: createdOrder.paymentMethod,
-        freeDeliveryApplied: createdOrder.freeDeliveryApplied,
-      });
-    } catch (tErr) {
-      console.error('Telegram notification error:', tErr);
-    }
+      try {
+        await sendTelegramOrderNotification({
+          orderNumber: createdOrder.orderNumber,
+          customerName: createdOrder.customerName,
+          phone: createdOrder.phone,
+          hostel: createdOrder.hostel,
+          roomNumber: createdOrder.roomNumber,
+          deliveryNote: createdOrder.deliveryNote,
+          items: createdOrder.items.map((i) => ({
+            productName: i.productName,
+            quantity: i.quantity,
+            price: i.price,
+            subtotal: i.subtotal,
+          })),
+          subtotal: createdOrder.subtotal,
+          deliveryFee: createdOrder.deliveryFee,
+          couponDiscount: createdOrder.couponDiscount,
+          total: createdOrder.total,
+          paymentMethod: createdOrder.paymentMethod,
+          freeDeliveryApplied: createdOrder.freeDeliveryApplied,
+        });
+      } catch (tErr) {
+        console.error('Telegram notification error:', tErr);
+      }
+    });
 
     return NextResponse.json(createdOrder, { status: 201 });
   } catch (error: any) {

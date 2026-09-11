@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Category } from '@/types';
-import { Plus, Edit2, Trash2, RefreshCw, X, Loader2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, RefreshCw, X, Loader2, Upload } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 
 export function CategoriesClient() {
@@ -18,7 +18,46 @@ export function CategoriesClient() {
   const [active, setActive] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { showToast } = useToast();
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('Image file too large (maximum size is 5MB)', 'error');
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+
+      const res = await fetch('/api/admin/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to upload image');
+      }
+
+      setImageUrl(data.url);
+      showToast('Category photo uploaded from gallery successfully!', 'success');
+    } catch (err: any) {
+      console.error('Gallery upload error:', err);
+      showToast(err.message || 'Failed to upload photo', 'error');
+    } finally {
+      setUploadingImage(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
 
   const fetchCategories = async () => {
     setLoading(true);
@@ -289,15 +328,79 @@ export function CategoriesClient() {
                 />
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-400 uppercase mb-1">Image URL</label>
-                <input
-                  type="url"
-                  value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                  placeholder="https://images.unsplash.com/..."
-                  className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/50"
-                />
+              {/* Image Upload / URL Input */}
+              <div className="space-y-2.5 bg-slate-950/70 p-3 rounded-2xl border border-slate-800">
+                <label className="block font-bold text-slate-400 uppercase text-[11px]">
+                  Category Photo
+                </label>
+
+                <div className="flex items-center gap-3">
+                  {imageUrl ? (
+                    <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-slate-900 border border-slate-700 shrink-0">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={imageUrl}
+                        alt="Category Preview"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src =
+                            'https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=600';
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-16 h-16 rounded-xl bg-slate-900 border border-dashed border-slate-700 flex flex-col items-center justify-center text-slate-500 shrink-0">
+                      <Upload className="w-5 h-5 mb-1 text-slate-600" />
+                      <span className="text-[9px] uppercase font-bold tracking-wider">No Photo</span>
+                    </div>
+                  )}
+
+                  <div className="flex-1 w-full space-y-1.5">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleImageUpload}
+                      accept="image/png, image/jpeg, image/webp, image/gif"
+                      className="hidden"
+                    />
+
+                    <button
+                      type="button"
+                      disabled={uploadingImage}
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full px-3.5 py-2 bg-gradient-to-r from-[#FF6B00] to-orange-500 hover:from-orange-600 hover:to-orange-500 active:scale-95 text-white text-xs font-bold rounded-xl shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2 transition disabled:opacity-50 cursor-pointer"
+                    >
+                      {uploadingImage ? (
+                        <>
+                          <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          <span>Uploading Photo...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>Upload from Gallery / Files</span>
+                        </>
+                      )}
+                    </button>
+                    <p className="text-[10px] text-slate-400">
+                      PNG, JPG, WebP up to 5MB. Directly uploads from your phone or PC.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Direct URL input fallback */}
+                <div>
+                  <label className="block text-[10px] text-slate-400 mb-1">
+                    Or paste an Image URL directly:
+                  </label>
+                  <input
+                    type="url"
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    placeholder="https://images.unsplash.com/..."
+                    className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/50"
+                  />
+                </div>
               </div>
 
               <div className="flex items-center justify-between p-3 bg-slate-950 rounded-xl border border-slate-800">

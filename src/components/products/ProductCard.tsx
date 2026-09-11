@@ -27,28 +27,28 @@ export function ProductCard({ product, onOpenDetails }: ProductCardProps) {
   return (
     <div className="group relative bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl hover:border-orange-200 transition-all duration-300 flex flex-col overflow-hidden">
       {/* Badges */}
-      <div className="absolute top-2.5 left-2.5 z-10 flex flex-col gap-1">
+      <div className="absolute top-2 left-2 z-10 flex flex-col items-start gap-1 max-w-[80%] pointer-events-none">
         {product.isHalfPrice && (
-          <div className="bg-gradient-to-r from-rose-500 to-pink-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-sm flex items-center gap-1">
-            <Zap className="w-3 h-3" />
-            HALF PRICE
+          <div className="bg-gradient-to-r from-rose-500 to-pink-500 text-white text-[8.5px] font-extrabold px-1.5 py-0.5 rounded shadow-xs flex items-center gap-0.5 tracking-tight uppercase">
+            <Zap className="w-2.5 h-2.5" />
+            <span>HALF PRICE</span>
           </div>
         )}
         {product.isTrending && !product.isHalfPrice && (
-          <div className="bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-sm flex items-center gap-1">
-            <Flame className="w-3 h-3" />
-            TRENDING
+          <div className="bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[8.5px] font-extrabold px-1.5 py-0.5 rounded shadow-xs flex items-center gap-0.5 tracking-tight uppercase">
+            <Flame className="w-2.5 h-2.5" />
+            <span>TRENDING</span>
           </div>
         )}
         {product.discount > 0 && !product.isHalfPrice && (
-          <div className="bg-gradient-to-r from-orange-500 to-rose-500 text-white text-[11px] font-bold px-2 py-0.5 rounded-md shadow-sm">
+          <div className="bg-gradient-to-r from-orange-500 to-rose-500 text-white text-[8.5px] font-extrabold px-1.5 py-0.5 rounded shadow-xs tracking-tight">
             {product.discount}% OFF
           </div>
         )}
         {product.earnSnackpoints && (
-          <div className="bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-900 text-[10px] font-bold px-2 py-0.5 rounded-md shadow-sm flex items-center gap-1">
-            <Star className="w-3 h-3" />
-            SnackPoints
+          <div className="bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 text-[8px] font-black px-1.5 py-0.5 rounded shadow-xs flex items-center gap-0.5 tracking-tight">
+            <Star className="w-2.5 h-2.5 fill-slate-950 text-slate-950" />
+            <span>SnackPoints</span>
           </div>
         )}
       </div>
