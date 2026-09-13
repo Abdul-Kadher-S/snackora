@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Product, Category, FoodType, TasteProfile, OriginType } from '@/types';
+import { useRealtimeProducts } from '@/hooks/useRealtimeProducts';
 import { AnnouncementBar } from '@/components/layout/AnnouncementBar';
 import { Navbar } from '@/components/layout/Navbar';
 import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
@@ -108,6 +109,35 @@ export function SearchClient({ categories }: SearchClientProps) {
     inStockOnly,
     sortBy,
   ]);
+
+  useRealtimeProducts({
+    onProductCreated: () => {
+      fetchFilteredProducts();
+    },
+    onProductUpdated: (updatedProd) => {
+      setProducts((prev) =>
+        prev.map((p) => (p.id === updatedProd.id ? { ...p, ...updatedProd } : p))
+      );
+    },
+    onProductDeleted: (deletedId) => {
+      setProducts((prev) => prev.filter((p) => p.id !== deletedId));
+    },
+    onStockUpdated: (payload) => {
+      setProducts((prev) =>
+        prev.map((p) => {
+          if (p.id === payload.id) {
+            const newStock = payload.stock !== undefined ? payload.stock : p.stock;
+            const newAvail = payload.available !== undefined ? payload.available : p.available;
+            return { ...p, ...payload, stock: newStock, available: newAvail };
+          }
+          return p;
+        })
+      );
+    },
+    onSync: () => {
+      fetchFilteredProducts();
+    },
+  });
 
   const resetFilters = () => {
     setQuery('');

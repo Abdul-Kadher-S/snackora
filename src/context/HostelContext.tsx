@@ -9,6 +9,16 @@ export const HOSTEL_BLOCKS = HOSTEL_BLOCKS_CONFIG.map(
 
 export const HOSTEL_NAMES = HOSTEL_BLOCKS_CONFIG.map((b) => b.name);
 
+export interface CustomerProfile {
+  id: string;
+  phone: string;
+  name: string;
+  block: string | null;
+  roomNumber: string | null;
+  availableSnackpoints: number;
+  hasPin?: boolean;
+}
+
 interface HostelContextType {
   selectedHostel: string;
   setSelectedHostel: (hostel: string) => void;
@@ -18,6 +28,13 @@ interface HostelContextType {
   setSavedName: (name: string) => void;
   savedPhone: string;
   setSavedPhone: (phone: string) => void;
+  customer: CustomerProfile | null;
+  isCustomerLoggedIn: boolean;
+  customerLogin: (phone: string, pin: string) => Promise<{ success: boolean; error?: string; needPinSetup?: boolean }>;
+  customerSetupPin: (payload: { phone: string; pin: string; confirmPin: string; name?: string; block?: string; roomNumber?: string }) => Promise<{ success: boolean; error?: string }>;
+  customerLogout: () => Promise<void>;
+  isLoginModalOpen: boolean;
+  setIsLoginModalOpen: (open: boolean) => void;
   isOpen: boolean;
   operatingHours: string;
   bannerNotice: string;
@@ -47,6 +64,8 @@ export function HostelProvider({ children }: { children: React.ReactNode }) {
   const [savedRoom, setSavedRoomState] = useState('');
   const [savedName, setSavedNameState] = useState('');
   const [savedPhone, setSavedPhoneState] = useState('');
+  const [customer, setCustomer] = useState<CustomerProfile | null>(null);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
   const [isOpen, setIsOpen] = useState(true);
   const [operatingHours, setOperatingHours] = useState('6:00 PM – 3:30 AM');
@@ -173,6 +192,113 @@ export function HostelProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Check customer session on mount
+  useEffect(() => {
+    fetch('/api/customer/auth')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && data.authenticated && data.customer) {
+          setCustomer(data.customer);
+          if (data.customer.name) setSavedNameState(data.customer.name);
+          if (data.customer.phone) setSavedPhoneState(data.customer.phone);
+          if (data.customer.roomNumber) setSavedRoomState(data.customer.roomNumber);
+          if (data.customer.block) {
+            const match = HOSTEL_BLOCKS.find((b) => b.startsWith(data.customer.block));
+            if (match) setSelectedHostelState(match);
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const customerLogin = async (phone: string, pin: string) => {
+    try {
+      const res = await fetch('/api/customer/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'login', phone, pin }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, error: data.error || 'Login failed', needPinSetup: data.needPinSetup };
+      }
+      if (data.customer) {
+        setCustomer(data.customer);
+        if (data.customer.name) setSavedName(data.customer.name);
+        if (data.customer.phone) setSavedPhone(data.customer.phone);
+        if (data.customer.roomNumber) setSavedRoom(data.customer.roomNumber);
+        if (data.customer.block) {
+          const match = HOSTEL_BLOCKS.find((b) => b.startsWith(data.customer.block));
+          if (match) setSelectedHostel(match);
+        }
+        try {
+          window.dispatchEvent(new Event('snackpoints_updated'));
+        } catch {}
+      }
+      return { success: true, needPinSetup: data.needPinSetup };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error' };
+    }
+  };
+
+  const customerSetupPin = async (payload: {
+    phone: string;
+    pin: string;
+    confirmPin: string;
+    name?: string;
+    block?: string;
+    roomNumber?: string;
+  }) => {
+    try {
+      const res = await fetch('/api/customer/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'setup_pin', ...payload }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, error: data.error || 'Failed to setup PIN' };
+      }
+      if (data.customer) {
+        setCustomer(data.customer);
+        if (data.customer.name) setSavedName(data.customer.name);
+        if (data.customer.phone) setSavedPhone(data.customer.phone);
+        if (data.customer.roomNumber) setSavedRoom(data.customer.roomNumber);
+        if (data.customer.block) {
+          const match = HOSTEL_BLOCKS.find((b) => b.startsWith(data.customer.block));
+          if (match) setSelectedHostel(match);
+        }
+        try {
+          window.dispatchEvent(new Event('snackpoints_updated'));
+        } catch {}
+      }
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error' };
+    }
+  };
+
+  const customerLogout = async () => {
+    try {
+      await fetch('/api/customer/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'logout' }),
+      });
+    } catch {}
+    setCustomer(null);
+    setSavedPhone('');
+    setSavedName('');
+    setSavedRoom('');
+    try {
+      localStorage.removeItem('snackora_phone');
+      localStorage.removeItem('snackora_saved_phone');
+      localStorage.removeItem('snackora_saved_name');
+      localStorage.removeItem('snackora_saved_room');
+      window.dispatchEvent(new Event('snackpoints_updated'));
+    } catch {}
+  };
+
   useEffect(() => {
     refreshSettings();
   }, []);
@@ -188,6 +314,13 @@ export function HostelProvider({ children }: { children: React.ReactNode }) {
         setSavedName,
         savedPhone,
         setSavedPhone,
+        customer,
+        isCustomerLoggedIn: Boolean(customer),
+        customerLogin,
+        customerSetupPin,
+        customerLogout,
+        isLoginModalOpen,
+        setIsLoginModalOpen,
         isOpen,
         operatingHours,
         bannerNotice,

@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS "Customer" (
   "name" TEXT NOT NULL,
   "block" TEXT,
   "roomNumber" TEXT,
+  "pinHash" TEXT,
   "availableSnackpoints" INTEGER NOT NULL DEFAULT 0,
   "pendingSnackpoints" INTEGER NOT NULL DEFAULT 0,
   "totalEarned" INTEGER NOT NULL DEFAULT 0,
@@ -67,6 +68,7 @@ CREATE TABLE IF NOT EXISTS "Order" (
   "deliveryFee" DOUBLE PRECISION NOT NULL DEFAULT 0,
   "couponDiscount" DOUBLE PRECISION NOT NULL DEFAULT 0,
   "couponId" TEXT,
+  "couponCode" TEXT,
   "total" DOUBLE PRECISION NOT NULL,
   "paymentMethod" TEXT NOT NULL DEFAULT 'CASH_ON_DELIVERY',
   "status" TEXT NOT NULL DEFAULT 'ORDER_RECEIVED',
@@ -152,14 +154,20 @@ CREATE TABLE IF NOT EXISTS "AdminMessage" (
 );
 
 -- ==========================================================
--- 2. ENABLE SUPABASE REALTIME ON ORDERS TABLE
+-- 2. ENABLE SUPABASE REALTIME ON ORDER & PRODUCT TABLES
 -- ==========================================================
 
--- Add the Order table to the Supabase Realtime publication
+-- Add Order and Product tables to the Supabase Realtime publication
 ALTER PUBLICATION supabase_realtime ADD TABLE "Order";
+ALTER PUBLICATION supabase_realtime ADD TABLE "Product";
 
 -- Enable full row replica identity for detailed change tracking
 ALTER TABLE "Order" REPLICA IDENTITY FULL;
+ALTER TABLE "Product" REPLICA IDENTITY FULL;
+
+-- Safe migration statements for existing databases:
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "pinHash" TEXT;
+ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "couponCode" TEXT;
 
 -- ==========================================================
 -- 3. ROW LEVEL SECURITY (RLS) POLICIES

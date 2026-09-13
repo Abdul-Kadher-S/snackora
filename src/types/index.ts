@@ -83,6 +83,7 @@ export interface Order {
   deliveryFee: number;
   couponDiscount: number;
   couponId: string | null;
+  couponCode?: string | null;
   total: number;
   paymentMethod: string;
   status: OrderStatus;
@@ -92,6 +93,15 @@ export interface Order {
   createdAt: string;
   updatedAt: string;
   items: OrderItem[];
+}
+
+export interface AppliedPromo {
+  code: string;
+  discountAmount: number;
+  discountType: 'PERCENTAGE' | 'FLAT';
+  discountValue: number;
+  minOrderValue?: number;
+  title: string;
 }
 
 export interface Customer {

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/prisma';
 import { getAdminSession } from '@/lib/auth';
+import { broadcastProductEvent } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
   try {
@@ -207,6 +209,15 @@ export async function POST(request: NextRequest) {
         category: true,
       },
     });
+
+    try {
+      revalidatePath('/', 'layout');
+      revalidatePath('/');
+      revalidatePath('/search');
+      revalidatePath('/categories');
+    } catch {}
+
+    broadcastProductEvent('PRODUCT_CREATED', newProduct);
 
     return NextResponse.json(newProduct, { status: 201 });
   } catch (error: any) {

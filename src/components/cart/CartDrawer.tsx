@@ -23,6 +23,7 @@ import {
   Phone,
 } from 'lucide-react';
 import { useHostel } from '@/context/HostelContext';
+import { useToast } from '@/context/ToastContext';
 
 export function CartDrawer() {
   const pathname = usePathname();
@@ -37,7 +38,13 @@ export function CartDrawer() {
     setIsCheckoutOpen,
     selectedCoupon,
     setSelectedCoupon,
+    appliedPromo,
+    setAppliedPromo,
   } = useCart();
+  const { showToast } = useToast();
+
+  const [promoInput, setPromoInput] = useState('');
+  const [applyingPromo, setApplyingPromo] = useState(false);
 
   const {
     selectedHostel,
@@ -89,10 +96,41 @@ export function CartDrawer() {
 
   const deliveryFee = getDeliveryFee(subtotal);
   const freeRemaining = getFreeDeliveryRemaining(subtotal);
-  const couponDiscount = selectedCoupon ? selectedCoupon.value : 0;
-  const finalTotal = Math.max(0, subtotal + deliveryFee - couponDiscount);
+  const userCouponDiscount = selectedCoupon ? selectedCoupon.value : 0;
+  const promoDiscount = appliedPromo ? appliedPromo.discountAmount : 0;
+  const totalCouponDiscount = userCouponDiscount + promoDiscount;
+  const finalTotal = Math.max(0, subtotal + deliveryFee - totalCouponDiscount);
   const hostelName = selectedHostel.split(' — ')[0];
   const deliveryOk = isDeliveryAvailable(selectedHostel);
+
+  const handleApplyPromo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!promoInput.trim()) return;
+    setApplyingPromo(true);
+    try {
+      const res = await fetch('/api/coupons/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: promoInput.trim(),
+          subtotal,
+          phone: savedPhone || phone,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.valid) {
+        setAppliedPromo(data);
+        showToast(`🎉 Coupon ${data.code} applied! Saved ₹${data.discountAmount}`, 'success');
+        setPromoInput('');
+      } else {
+        showToast(data.error || 'Invalid coupon code', 'error');
+      }
+    } catch {
+      showToast('Failed to validate coupon code.', 'error');
+    } finally {
+      setApplyingPromo(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[100] flex justify-end bg-slate-950/60 backdrop-blur-xs animate-fade-in overflow-hidden">
@@ -226,12 +264,73 @@ export function CartDrawer() {
                 ))}
               </div>
 
+              {/* Have a coupon code? Section */}
+              <div className="bg-gradient-to-r from-orange-50/70 to-amber-50/70 border border-orange-200/80 rounded-2xl p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Ticket className="w-4 h-4 text-[#FF6B00]" />
+                    <span className="text-xs font-black text-slate-800">Have a coupon code?</span>
+                  </div>
+                  {appliedPromo && (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                      APPLIED
+                    </span>
+                  )}
+                </div>
+
+                {appliedPromo ? (
+                  <div className="flex items-center justify-between bg-white border border-emerald-300 rounded-xl p-2.5 shadow-xs">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                        <Check className="w-4 h-4 stroke-[3]" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-black text-slate-900">{appliedPromo.code}</span>
+                          <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">
+                            -₹{appliedPromo.discountAmount}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-500">{appliedPromo.title || 'Promo discount applied'}</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAppliedPromo(null);
+                        showToast('Coupon removed.', 'info');
+                      }}
+                      className="text-xs text-rose-500 hover:text-rose-700 font-bold px-2 py-1 rounded-lg hover:bg-rose-50 transition cursor-pointer"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <form onSubmit={handleApplyPromo} className="flex gap-2">
+                    <input
+                      type="text"
+                      value={promoInput}
+                      onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+                      placeholder="Enter coupon code"
+                      className="flex-1 px-3 py-2 bg-white border border-orange-200 rounded-xl text-xs font-bold text-slate-900 placeholder:text-slate-400 uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/40"
+                    />
+                    <button
+                      type="submit"
+                      disabled={applyingPromo || !promoInput.trim()}
+                      className="px-4 py-2 bg-[#FF6B00] hover:bg-[#EA580C] disabled:bg-slate-300 text-white font-bold rounded-xl text-xs transition cursor-pointer disabled:cursor-not-allowed flex items-center gap-1"
+                    >
+                      {applyingPromo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Apply'}
+                    </button>
+                  </form>
+                )}
+              </div>
+
               {/* Coupons & Discounts Section In Cart */}
               <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-3.5 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
-                    <Ticket className="w-4 h-4 text-amber-600" />
-                    <span className="text-xs font-black text-amber-900">Snackora Coupons</span>
+                    <Gift className="w-4 h-4 text-amber-600" />
+                    <span className="text-xs font-black text-amber-900">SnackPoints Coupons</span>
                   </div>
                   {loadingCoupons && (
                     <Loader2 className="w-3.5 h-3.5 text-amber-600 animate-spin" />
@@ -362,10 +461,16 @@ export function CartDrawer() {
                   {deliveryFee === 0 ? 'FREE' : `₹${deliveryFee}`}
                 </span>
               </div>
-              {couponDiscount > 0 && (
+              {promoDiscount > 0 && (
                 <div className="flex justify-between text-emerald-600 font-bold">
-                  <span>Coupon Applied</span>
-                  <span>-₹{couponDiscount}</span>
+                  <span>Coupon ({appliedPromo?.code})</span>
+                  <span>-₹{promoDiscount}</span>
+                </div>
+              )}
+              {userCouponDiscount > 0 && (
+                <div className="flex justify-between text-emerald-600 font-bold">
+                  <span>SnackPoints Coupon</span>
+                  <span>-₹{userCouponDiscount}</span>
                 </div>
               )}
               <div className="pt-2 border-t border-slate-200 flex justify-between text-base font-black text-slate-900">

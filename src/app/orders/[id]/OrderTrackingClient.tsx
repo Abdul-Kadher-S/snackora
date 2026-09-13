@@ -10,6 +10,7 @@ import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
 import { Footer } from '@/components/layout/Footer';
 import { Currency } from '@/components/ui/Currency';
 import { VegBadge } from '@/components/ui/VegBadge';
+import { useRepeatOrder } from '@/hooks/useRepeatOrder';
 import {
   CheckCircle2,
   Clock,
@@ -18,6 +19,7 @@ import {
   Home,
   XCircle,
   RotateCw,
+  RotateCcw,
   MapPin,
   Phone,
   Banknote,
@@ -25,6 +27,7 @@ import {
   ShieldCheck,
   Building2,
   DoorOpen,
+  ShoppingBag,
 } from 'lucide-react';
 
 interface OrderTrackingClientProps {
@@ -67,6 +70,7 @@ const STATUS_STEPS: { status: OrderStatus; label: string; desc: string; icon: an
 export function OrderTrackingClient({ initialOrder }: OrderTrackingClientProps) {
   const [order, setOrder] = useState<Order>(initialOrder);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const { repeatOrder, isRepeating } = useRepeatOrder();
 
   // Poll for status updates every 6 seconds so customer sees live progress when admin changes it
   const refreshOrderStatus = async () => {
@@ -125,11 +129,28 @@ export function OrderTrackingClient({ initialOrder }: OrderTrackingClientProps) 
             {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </p>
 
-          <div className="mt-4 inline-flex items-center gap-2">
+          <div className="mt-4 inline-flex flex-wrap items-center justify-center gap-2">
+            <button
+              onClick={() =>
+                repeatOrder(
+                  order.items.map((i) => ({
+                    productId: i.productId,
+                    productName: i.productName,
+                    quantity: i.quantity,
+                  }))
+                )
+              }
+              disabled={isRepeating}
+              className="px-4 py-2 bg-[#FF6B00] hover:bg-[#EA580C] text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-md shadow-orange-500/20 transition hover:scale-105 active:scale-95 disabled:opacity-50 cursor-pointer"
+            >
+              <RotateCcw className={`w-3.5 h-3.5 ${isRepeating ? 'animate-spin' : ''}`} />
+              <span>{isRepeating ? 'Checking Stock...' : 'Repeat Order'}</span>
+            </button>
+
             <button
               onClick={refreshOrderStatus}
               disabled={isRefreshing}
-              className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs flex items-center gap-1.5 transition"
+              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs flex items-center gap-1.5 transition"
             >
               <RotateCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
               <span>{isRefreshing ? 'Checking...' : 'Refresh Status'}</span>
@@ -313,13 +334,31 @@ export function OrderTrackingClient({ initialOrder }: OrderTrackingClientProps) 
           </div>
         </div>
 
-        {/* Back to Home CTA */}
-        <div className="text-center">
+        {/* Back to Home & Repeat Order CTAs */}
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={() =>
+              repeatOrder(
+                order.items.map((i) => ({
+                  productId: i.productId,
+                  productName: i.productName,
+                  quantity: i.quantity,
+                }))
+              )
+            }
+            disabled={isRepeating}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-[#FF6B00] hover:bg-[#EA580C] text-white font-bold rounded-2xl shadow-lg shadow-orange-500/25 transition hover:scale-105 active:scale-95 text-sm cursor-pointer disabled:opacity-50"
+          >
+            <RotateCcw className={`w-4 h-4 ${isRepeating ? 'animate-spin' : ''}`} />
+            <span>{isRepeating ? 'Revalidating Stock...' : 'Repeat This Order'}</span>
+          </button>
+
           <Link
             href="/"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-[#FF6B00] hover:bg-[#EA580C] text-white font-bold rounded-2xl shadow-lg shadow-orange-500/25 transition hover:scale-105 active:scale-95 text-sm"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-white hover:bg-slate-50 text-slate-700 font-bold rounded-2xl border border-slate-200 shadow-sm transition hover:scale-105 active:scale-95 text-sm"
           >
-            <span>Order More Snacks</span>
+            <span>Browse More Snacks</span>
             <ArrowRight className="w-4 h-4" />
           </Link>
         </div>

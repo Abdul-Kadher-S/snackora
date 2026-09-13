@@ -58,3 +58,26 @@ export async function broadcastOrderEvent(
     console.error('Failed to broadcast realtime order event:', error);
   }
 }
+
+/**
+ * Broadcasts a real-time product/stock event across all connected customer & admin clients.
+ * Safely ignores if Supabase credentials are not configured.
+ */
+export async function broadcastProductEvent(
+  event: 'PRODUCT_CREATED' | 'PRODUCT_UPDATED' | 'PRODUCT_DELETED' | 'STOCK_UPDATED',
+  payload: Record<string, any>
+) {
+  try {
+    const client = getSupabaseClient();
+    if (!client) return;
+
+    const channel = client.channel('snackora_products_live');
+    await channel.send({
+      type: 'broadcast',
+      event,
+      payload,
+    });
+  } catch (error) {
+    console.error('Failed to broadcast realtime product event:', error);
+  }
+}

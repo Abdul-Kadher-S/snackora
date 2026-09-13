@@ -53,6 +53,7 @@ model Customer {
   name                  String
   block                 String?
   roomNumber            String?
+  pinHash               String?
   availableSnackpoints  Int                    @default(0)
   pendingSnackpoints    Int                    @default(0)
   totalEarned           Int                    @default(0)
@@ -77,6 +78,7 @@ model Order {
   deliveryFee             Float       @default(0)
   couponDiscount          Float       @default(0)
   couponId                String?
+  couponCode              String?
   total                   Float
   paymentMethod           String      @default("CASH_ON_DELIVERY")
   status                  String      @default("ORDER_RECEIVED") // ORDER_RECEIVED, CONFIRMED, PREPARING, OUT_FOR_DELIVERY, DELIVERED, CANCELLED

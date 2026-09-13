@@ -12,12 +12,15 @@ import {
   Ticket,
   Bell,
   Cookie,
+  User,
+  LogOut,
 } from 'lucide-react';
+import { CustomerLoginModal } from '@/components/auth/CustomerLoginModal';
 
 export function Navbar() {
   const pathname = usePathname();
   const { totalItems, setIsCartOpen } = useCart();
-  const { savedPhone } = useHostel();
+  const { savedPhone, customer, isCustomerLoggedIn, customerLogout, setIsLoginModalOpen } = useHostel();
   const [pointsBalance, setPointsBalance] = useState<number | null>(() => {
     if (typeof window !== 'undefined') {
       const cached = localStorage.getItem('snackora_cached_points');
@@ -174,6 +177,32 @@ export function Navbar() {
               </span>
             </Link>
 
+            {/* Customer Account / Login Button */}
+            {isCustomerLoggedIn && customer ? (
+              <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl px-2 py-1 sm:px-2.5 sm:py-1.5">
+                <span className="text-[11px] sm:text-xs font-bold text-slate-800 truncate max-w-[80px] sm:max-w-[110px]">
+                  {customer.name?.split(' ')[0] || 'My Account'}
+                </span>
+                <button
+                  type="button"
+                  onClick={customerLogout}
+                  className="p-1 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-slate-200/50 transition cursor-pointer"
+                  title="Logout"
+                >
+                  <LogOut className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsLoginModalOpen(true)}
+                className="px-2.5 py-1.5 sm:px-3 sm:py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl sm:rounded-2xl text-xs sm:text-sm flex items-center gap-1.5 transition cursor-pointer shrink-0"
+              >
+                <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#FF6B00]" />
+                <span className="hidden sm:inline">Login</span>
+              </button>
+            )}
+
             {/* Notifications */}
             <Link
               href="/notifications"
@@ -200,6 +229,7 @@ export function Navbar() {
           </div>
         </div>
       </div>
+      <CustomerLoginModal />
     </header>
   );
 }

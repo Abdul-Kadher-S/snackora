@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Product, Category } from '@/types';
+import { useRealtimeProducts } from '@/hooks/useRealtimeProducts';
 import { AnnouncementBar } from '@/components/layout/AnnouncementBar';
 import { Navbar } from '@/components/layout/Navbar';
 import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
@@ -20,13 +21,57 @@ interface HomeClientProps {
 
 export function HomeClient({ categories, products }: HomeClientProps) {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [productList, setProductList] = useState<Product[]>(products);
+
+  useEffect(() => {
+    setProductList(products);
+  }, [products]);
+
+  // Realtime product, stock, and availability subscription
+  useRealtimeProducts({
+    onProductCreated: (newProd) => {
+      setProductList((prev) => {
+        if (prev.some((p) => p.id === newProd.id)) return prev;
+        return [newProd, ...prev];
+      });
+    },
+    onProductUpdated: (updatedProd) => {
+      setProductList((prev) =>
+        prev.map((p) => (p.id === updatedProd.id ? { ...p, ...updatedProd } : p))
+      );
+    },
+    onProductDeleted: (deletedId) => {
+      setProductList((prev) => prev.filter((p) => p.id !== deletedId));
+    },
+    onStockUpdated: (payload) => {
+      setProductList((prev) =>
+        prev.map((p) => {
+          if (p.id === payload.id) {
+            const newStock = payload.stock !== undefined ? payload.stock : p.stock;
+            const newAvail = payload.available !== undefined ? payload.available : p.available;
+            return { ...p, ...payload, stock: newStock, available: newAvail };
+          }
+          return p;
+        })
+      );
+    },
+    onSync: async () => {
+      try {
+        const res = await fetch('/api/products');
+        if (res.ok) {
+          const data = await res.json();
+          setProductList(data);
+        }
+      } catch {}
+    },
+  });
 
   // Curated lists
-  const popularProducts = products
+  const popularProducts = productList
     .filter((p) => p.rating >= 4.8)
     .slice(0, 4);
 
-  const midnightCravings = products
+  const midnightCravings = productList
     .filter((p) =>
       p.tags.toLowerCase().includes('midnight') ||
       p.tags.toLowerCase().includes('maggi') ||
@@ -35,15 +80,15 @@ export function HomeClient({ categories, products }: HomeClientProps) {
     )
     .slice(0, 4);
 
-  const under50Products = products
+  const under50Products = productList
     .filter((p) => p.price <= 50)
     .slice(0, 4);
 
-  const studentCombos = products
+  const studentCombos = productList
     .filter((p) => p.category?.slug === 'combos' || p.tags.includes('combo'))
     .slice(0, 4);
 
-  const sweetTooth = products
+  const sweetTooth = productList
     .filter(
       (p) =>
         p.taste === 'SWEET' ||
@@ -53,15 +98,15 @@ export function HomeClient({ categories, products }: HomeClientProps) {
     )
     .slice(0, 4);
 
-  const refreshYourself = products
+  const refreshYourself = productList
     .filter((p) => p.category?.slug === 'beverages' || p.tags.includes('coffee') || p.tags.includes('shake'))
     .slice(0, 4);
 
-  const internationalPicks = products
+  const internationalPicks = productList
     .filter((p) => p.origin === 'INTERNATIONAL' || p.category?.slug === 'international-snacks')
     .slice(0, 4);
 
-  const newArrivals = products.slice(-4).reverse();
+  const newArrivals = productList.slice(-4).reverse();
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F8FAFC]">
@@ -156,7 +201,7 @@ export function HomeClient({ categories, products }: HomeClientProps) {
         />
 
         {/* Empty Catalog Notice */}
-        {products.length === 0 && (
+        {productList.length === 0 && (
           <div className="max-w-md mx-auto px-4 py-20 text-center space-y-3">
             <div className="w-16 h-16 rounded-3xl bg-orange-100 text-[#FF6B00] flex items-center justify-center mx-auto shadow-sm">
               <Package className="w-8 h-8" />

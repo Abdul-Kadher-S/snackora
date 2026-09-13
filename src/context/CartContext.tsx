@@ -1,12 +1,13 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Product, CartItem, Coupon } from '@/types';
+import { Product, CartItem, Coupon, AppliedPromo } from '@/types';
 import { useToast } from './ToastContext';
 
 interface CartContextType {
   cart: CartItem[];
   addToCart: (product: Product, quantity?: number) => void;
+  addMultipleToCart: (items: { product: Product; quantity: number }[]) => void;
   removeFromCart: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   clearCart: () => void;
@@ -19,6 +20,8 @@ interface CartContextType {
   setIsCheckoutOpen: (open: boolean) => void;
   selectedCoupon: Coupon | null;
   setSelectedCoupon: (coupon: Coupon | null) => void;
+  appliedPromo: AppliedPromo | null;
+  setAppliedPromo: (promo: AppliedPromo | null) => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -31,6 +34,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [selectedCoupon, setSelectedCoupon] = useState<Coupon | null>(null);
+  const [appliedPromo, setAppliedPromo] = useState<AppliedPromo | null>(null);
   const { showToast } = useToast();
 
   // Load cart from localStorage on mount
@@ -86,6 +90,26 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const addMultipleToCart = (items: { product: Product; quantity: number }[]) => {
+    setCart((currentCart) => {
+      const updated = [...currentCart];
+      for (const item of items) {
+        if (!item.product.available || item.product.stock <= 0) continue;
+        const existingIdx = updated.findIndex((i) => i.product.id === item.product.id);
+        const desiredQty = item.quantity > 0 ? item.quantity : 1;
+        if (existingIdx > -1) {
+          const currentQty = updated[existingIdx].quantity;
+          const newQty = Math.min(currentQty + desiredQty, item.product.stock);
+          updated[existingIdx] = { ...updated[existingIdx], quantity: newQty };
+        } else {
+          const newQty = Math.min(desiredQty, item.product.stock);
+          updated.push({ product: item.product, quantity: newQty });
+        }
+      }
+      return updated;
+    });
+  };
+
   const updateQuantity = (productId: string, quantity: number) => {
     if (quantity <= 0) {
       removeFromCart(productId);
@@ -114,6 +138,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const clearCart = () => {
     setCart([]);
     setSelectedCoupon(null);
+    setAppliedPromo(null);
     try {
       localStorage.removeItem(CART_STORAGE_KEY);
     } catch {}
@@ -127,11 +152,37 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const totalItems = cart.reduce((acc, item) => acc + item.quantity, 0);
   const subtotal = cart.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
 
+  // Auto-adjust promo discount when subtotal changes
+  useEffect(() => {
+    if (!appliedPromo) return;
+    if (cart.length === 0) {
+      setAppliedPromo(null);
+      return;
+    }
+    if (appliedPromo.minOrderValue && subtotal < appliedPromo.minOrderValue) {
+      if (appliedPromo.discountAmount !== 0) {
+        setAppliedPromo((prev) => (prev ? { ...prev, discountAmount: 0 } : null));
+      }
+      return;
+    }
+    let calculated = 0;
+    if (appliedPromo.discountType === 'PERCENTAGE') {
+      calculated = Math.round((subtotal * appliedPromo.discountValue) / 100);
+    } else {
+      calculated = appliedPromo.discountValue;
+    }
+    calculated = Math.min(calculated, subtotal);
+    if (appliedPromo.discountAmount !== calculated) {
+      setAppliedPromo((prev) => (prev ? { ...prev, discountAmount: calculated } : null));
+    }
+  }, [subtotal, cart.length, appliedPromo]);
+
   return (
     <CartContext.Provider
       value={{
         cart,
         addToCart,
+        addMultipleToCart,
         removeFromCart,
         updateQuantity,
         clearCart,
@@ -144,6 +195,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         setIsCheckoutOpen,
         selectedCoupon,
         setSelectedCoupon,
+        appliedPromo,
+        setAppliedPromo,
       }}
     >
       {children}

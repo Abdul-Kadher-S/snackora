@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/prisma';
 import { getAdminSession } from '@/lib/auth';
-import { broadcastOrderEvent } from '@/lib/supabase';
+import { broadcastOrderEvent, broadcastProductEvent } from '@/lib/supabase';
 
 export async function GET(
   request: NextRequest,
@@ -234,6 +235,18 @@ export async function PATCH(
 
     if (updated) {
       broadcastOrderEvent('ORDER_UPDATED', updated);
+      if (status === 'CANCELLED') {
+        try {
+          revalidatePath('/', 'layout');
+          revalidatePath('/');
+          revalidatePath('/search');
+        } catch {}
+        for (const item of existingOrder.items) {
+          try {
+            broadcastProductEvent('STOCK_UPDATED', { id: item.productId });
+          } catch {}
+        }
+      }
     }
 
     return NextResponse.json(updated);

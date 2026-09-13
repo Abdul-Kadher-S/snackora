@@ -22,6 +22,9 @@ import {
   Ticket,
   Gift,
   Check,
+  Lock,
+  KeyRound,
+  ShieldCheck,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -36,6 +39,7 @@ export function CheckoutModal() {
     clearCart,
     selectedCoupon,
     setSelectedCoupon,
+    appliedPromo,
   } = useCart();
   const {
     selectedHostel,
@@ -51,6 +55,8 @@ export function CheckoutModal() {
     isDeliveryAvailable,
     getDeliveryFee,
     getFreeDeliveryRemaining,
+    customer,
+    isCustomerLoggedIn,
   } = useHostel();
 
   const { showToast } = useToast();
@@ -64,6 +70,16 @@ export function CheckoutModal() {
   const [errorMsg, setErrorMsg] = useState('');
   const [nameError, setNameError] = useState('');
   const [phoneError, setPhoneError] = useState('');
+
+  // Customer PIN state
+  const [pin, setPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+  const [accountInfo, setAccountInfo] = useState<{
+    checked: boolean;
+    exists: boolean;
+    hasPin: boolean;
+  }>({ checked: false, exists: false, hasPin: false });
+  const [checkingAccount, setCheckingAccount] = useState(false);
 
   // Coupon state
   const [availableCoupons, setAvailableCoupons] = useState<Coupon[]>([]);
@@ -90,11 +106,49 @@ export function CheckoutModal() {
     }
   };
 
+  // Check account status whenever phone is 10 digits
+  const checkCustomerAccount = async (targetPhone: string) => {
+    const clean = targetPhone.replace(/\D/g, '');
+    if (clean.length !== 10) {
+      setAccountInfo({ checked: false, exists: false, hasPin: false });
+      return;
+    }
+    setCheckingAccount(true);
+    try {
+      const res = await fetch(`/api/customer/auth?phone=${clean}`);
+      if (res.ok) {
+        const data = await res.json();
+        setAccountInfo({
+          checked: true,
+          exists: Boolean(data.exists),
+          hasPin: Boolean(data.hasPin),
+        });
+        if (data.exists) {
+          if (data.name && (!customerName || customerName.trim() === '')) {
+            setCustomerName(data.name);
+          }
+          if (data.block) {
+            const match = HOSTEL_BLOCKS.find((b) => b.startsWith(data.block));
+            if (match) setHostel(match);
+          }
+          if (data.roomNumber && (!roomNumber || roomNumber.trim() === '')) {
+            setRoomNumber(data.roomNumber);
+          }
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setCheckingAccount(false);
+    }
+  };
+
   useEffect(() => {
     if (isCheckoutOpen) {
       const cleanPhone = phone.replace(/\D/g, '');
       if (cleanPhone.length === 10) {
         fetchCoupons(cleanPhone);
+        checkCustomerAccount(cleanPhone);
       }
     }
   }, [isCheckoutOpen, phone]);
@@ -112,7 +166,9 @@ export function CheckoutModal() {
 
   const deliveryFee = getDeliveryFee(subtotal);
   const freeDeliveryRemaining = getFreeDeliveryRemaining(subtotal);
-  const couponDiscount = selectedCoupon ? selectedCoupon.value : 0;
+  const userCouponDiscount = selectedCoupon ? selectedCoupon.value : 0;
+  const promoDiscount = appliedPromo ? appliedPromo.discountAmount : 0;
+  const couponDiscount = userCouponDiscount + promoDiscount;
   const finalTotal = Math.max(0, subtotal + deliveryFee - couponDiscount);
   const hostelName = hostel.split(' — ')[0].trim();
   const deliveryAvailable = isDeliveryAvailable(hostel);
@@ -185,6 +241,28 @@ export function CheckoutModal() {
       return;
     }
 
+    // PIN Validation
+    const isCurrentlyLoggedIn = isCustomerLoggedIn && customer?.phone === cleanPhone;
+    if (!isCurrentlyLoggedIn) {
+      if (!accountInfo.exists || !accountInfo.hasPin) {
+        // First-time customer or legacy customer without PIN
+        if (!/^\d{4}$/.test(pin.trim())) {
+          setErrorMsg('Please create your 4-digit PIN (numbers only).');
+          return;
+        }
+        if (pin.trim() !== confirmPin.trim()) {
+          setErrorMsg('PIN confirmation does not match. Please check your PIN.');
+          return;
+        }
+      } else {
+        // Returning customer with PIN
+        if (!/^\d{4}$/.test(pin.trim())) {
+          setErrorMsg('Please enter your 4-digit PIN to confirm your order.');
+          return;
+        }
+      }
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -195,6 +273,9 @@ export function CheckoutModal() {
         roomNumber: roomNumber.trim().toUpperCase(),
         deliveryNote: deliveryNote.trim(),
         couponId: selectedCoupon?.id || null,
+        couponCode: appliedPromo?.code || null,
+        pin: pin.trim() || undefined,
+        confirmPin: confirmPin.trim() || undefined,
         items: cart.map((i) => ({
           productId: i.product.id,
           quantity: i.quantity,
@@ -371,6 +452,113 @@ export function CheckoutModal() {
             )}
           </div>
 
+          {/* 4-Digit PIN Section for Customer Account */}
+          {phone.replace(/\D/g, '').length === 10 && (
+            <>
+              {isCustomerLoggedIn && customer?.phone === phone.replace(/\D/g, '') ? (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 flex items-center justify-between text-xs text-emerald-800">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>
+                      Logged in as <strong>{customer.name}</strong> (+91 {customer.phone})
+                    </span>
+                  </div>
+                  <span className="text-[10px] bg-emerald-200/60 text-emerald-900 font-bold px-2 py-0.5 rounded-full">
+                    Verified
+                  </span>
+                </div>
+              ) : checkingAccount ? (
+                <div className="flex items-center gap-2 text-xs text-slate-500 py-1">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-[#FF6B00]" />
+                  <span>Checking customer account...</span>
+                </div>
+              ) : !accountInfo.exists || !accountInfo.hasPin ? (
+                /* First-time customer: Create 4-digit PIN */
+                <div className="bg-orange-50/90 border border-orange-200 rounded-2xl p-4 space-y-3 animate-fade-in">
+                  <div className="flex items-center gap-1.5">
+                    <KeyRound className="w-4 h-4 text-[#FF6B00]" />
+                    <span className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                      Create Your 4-Digit PIN
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    {accountInfo.exists
+                      ? 'Welcome back! Please create a 4-digit PIN to secure your account.'
+                      : 'First time ordering? Create a 4-digit PIN so you can easily view your orders and saved details next time.'}
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                        Create your 4-digit PIN *
+                      </label>
+                      <input
+                        type="password"
+                        inputMode="numeric"
+                        required
+                        maxLength={4}
+                        value={pin}
+                        onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+                        placeholder="••••"
+                        className="w-full px-3 py-2 bg-white border border-orange-300 rounded-xl text-center text-base font-black tracking-[0.3em] text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/40"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                        Confirm your 4-digit PIN *
+                      </label>
+                      <input
+                        type="password"
+                        inputMode="numeric"
+                        required
+                        maxLength={4}
+                        value={confirmPin}
+                        onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))}
+                        placeholder="••••"
+                        className="w-full px-3 py-2 bg-white border border-orange-300 rounded-xl text-center text-base font-black tracking-[0.3em] text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/40"
+                      />
+                    </div>
+                  </div>
+                  <span className="text-[10px] text-slate-500 block">
+                    Exactly 4 digits (numbers only). Remember this PIN to log in.
+                  </span>
+                </div>
+              ) : (
+                /* Returning customer: Enter 4-digit PIN */
+                <div className="bg-amber-50/90 border border-amber-300/80 rounded-2xl p-4 space-y-2.5 animate-fade-in">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Lock className="w-4 h-4 text-[#FF6B00]" />
+                      <span className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                        Welcome back to SNACKORA
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-bold text-amber-900 bg-amber-200/80 px-2 py-0.5 rounded-full">
+                      Existing Customer
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600">
+                    Enter your 4-digit PIN to confirm your order and keep your account secure:
+                  </p>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      4-Digit PIN *
+                    </label>
+                    <input
+                      type="password"
+                      inputMode="numeric"
+                      required
+                      maxLength={4}
+                      value={pin}
+                      onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+                      placeholder="••••"
+                      className="w-36 px-3 py-2 bg-white border border-amber-300 rounded-xl text-center text-base font-black tracking-[0.3em] text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/40"
+                    />
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
           {/* Room Number */}
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
@@ -522,10 +710,16 @@ export function CheckoutModal() {
                 {deliveryFee === 0 ? 'FREE' : `₹${deliveryFee}`}
               </span>
             </div>
-            {couponDiscount > 0 && (
+            {promoDiscount > 0 && (
               <div className="flex items-center justify-between text-xs text-emerald-600 font-bold">
-                <span>Coupon Applied</span>
-                <span>-₹{couponDiscount}</span>
+                <span>Coupon ({appliedPromo?.code})</span>
+                <span>-₹{promoDiscount}</span>
+              </div>
+            )}
+            {userCouponDiscount > 0 && (
+              <div className="flex items-center justify-between text-xs text-emerald-600 font-bold">
+                <span>SnackPoints Coupon</span>
+                <span>-₹{userCouponDiscount}</span>
               </div>
             )}
             <div className="border-t border-slate-200 pt-2 flex items-center justify-between">

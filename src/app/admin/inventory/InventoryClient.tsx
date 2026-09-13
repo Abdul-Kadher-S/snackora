@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Product } from '@/types';
+import { useRealtimeProducts } from '@/hooks/useRealtimeProducts';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -47,6 +48,40 @@ export function InventoryClient() {
   useEffect(() => {
     fetchProducts();
   }, []);
+
+  useRealtimeProducts({
+    onProductCreated: () => {
+      fetchProducts();
+    },
+    onProductUpdated: (updatedProd) => {
+      setProducts((prev) =>
+        prev.map((p) => (p.id === updatedProd.id ? { ...p, ...updatedProd } : p))
+      );
+      setStockEdits((prev) => ({
+        ...prev,
+        [updatedProd.id]: updatedProd.stock,
+      }));
+    },
+    onStockUpdated: (payload) => {
+      setProducts((prev) =>
+        prev.map((p) => (p.id === payload.id ? { ...p, stock: payload.stock ?? p.stock } : p))
+      );
+      if (payload.stock !== undefined) {
+        setStockEdits((prev) => ({
+          ...prev,
+          [payload.id]: payload.stock,
+        }));
+      } else {
+        fetchProducts();
+      }
+    },
+    onProductDeleted: (id) => {
+      setProducts((prev) => prev.filter((p) => p.id !== id));
+    },
+    onSync: () => {
+      fetchProducts();
+    },
+  });
 
   const handleStockChange = (id: string, value: number) => {
     setStockEdits((prev) => ({

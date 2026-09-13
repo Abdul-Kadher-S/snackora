@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse, after } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/prisma';
 import { getAdminSession } from '@/lib/auth';
-import { broadcastOrderEvent } from '@/lib/supabase';
+import { broadcastOrderEvent, broadcastProductEvent } from '@/lib/supabase';
 import { sendTelegramOrderNotification } from '@/lib/telegram';
+import { hashCustomerPin, verifyCustomerPin, signCustomerToken, CUSTOMER_COOKIE_NAME } from '@/lib/customer-auth';
+import { ensureDbColumns } from '@/lib/db-init';
 
 export async function GET(request: NextRequest) {
   try {
@@ -120,9 +123,10 @@ async function generateUniqueOrderNumber(): Promise<string> {
 }
 
 export async function POST(request: NextRequest) {
+  await ensureDbColumns();
   try {
     const body = await request.json();
-    const { customerName, phone, hostel, roomNumber, deliveryNote, items, couponId } = body;
+    const { customerName, phone, hostel, roomNumber, deliveryNote, items, couponId, couponCode, pin, confirmPin } = body;
 
     // === NAME VALIDATION ===
     if (!customerName || typeof customerName !== 'string' || customerName.trim().length < 2) {
@@ -264,10 +268,13 @@ export async function POST(request: NextRequest) {
     const freeDeliveryApplied = calculatedSubtotal >= freeThreshold;
     const deliveryFee = freeDeliveryApplied ? 0 : deliveryChargeAmount;
 
-    // === COUPON VALIDATION ===
-    let couponDiscount = 0;
+    // === COUPON & PROMO VALIDATION ===
+    let userCouponDiscount = 0;
     let validatedCouponId: string | null = null;
+    let promoDiscount = 0;
+    let validatedCouponCode: string | null = null;
 
+    // 1. User-specific SnackPoints Coupon
     if (couponId) {
       const coupon = await prisma.coupon.findUnique({
         where: { id: couponId },
@@ -299,12 +306,64 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Maximum coupon discount is ₹20 per order.' }, { status: 400 });
       }
 
-      couponDiscount = Math.min(coupon.value, calculatedSubtotal); // Don't go below 0
+      userCouponDiscount = Math.min(coupon.value, calculatedSubtotal);
       validatedCouponId = coupon.id;
     }
 
-    const calculatedTotal = calculatedSubtotal + deliveryFee - couponDiscount;
-    const snackpointsEarned = Math.floor(snackpointsEligibleAmount); // ₹1 = 1 point
+    // 2. Admin-Created Promo Code (Offer table) - STRICT ONE-TIME PER CUSTOMER
+    if (couponCode && typeof couponCode === 'string' && couponCode.trim()) {
+      const normalizedCode = couponCode.trim().toUpperCase();
+      const offer = await prisma.offer.findUnique({
+        where: { code: normalizedCode },
+      });
+
+      if (!offer) {
+        return NextResponse.json({ error: `Coupon code "${normalizedCode}" is invalid.` }, { status: 400 });
+      }
+
+      if (!offer.active) {
+        return NextResponse.json({ error: `Coupon code "${offer.code}" is no longer active.` }, { status: 400 });
+      }
+
+      if (offer.minOrderValue > 0 && calculatedSubtotal < offer.minOrderValue) {
+        return NextResponse.json(
+          { error: `Minimum order value of ₹${offer.minOrderValue} required for coupon ${offer.code}.` },
+          { status: 400 }
+        );
+      }
+
+      // Enforce one-time per customer: check past non-cancelled orders by this phone
+      const pastUsedOrder = await prisma.order.findFirst({
+        where: {
+          phone: cleanPhone,
+          couponCode: offer.code,
+          status: { not: 'CANCELLED' },
+        },
+      });
+
+      if (pastUsedOrder) {
+        return NextResponse.json(
+          {
+            error: `Coupon code ${offer.code} has already been used on your account (${pastUsedOrder.orderNumber}). Admin promo codes can only be used once per customer.`,
+          },
+          { status: 400 }
+        );
+      }
+
+      // Recalculate discount strictly on server
+      if (offer.discountType === 'PERCENTAGE') {
+        promoDiscount = Math.round((calculatedSubtotal * offer.discountValue) / 100);
+      } else {
+        promoDiscount = offer.discountValue;
+      }
+      promoDiscount = Math.min(promoDiscount, calculatedSubtotal);
+      validatedCouponCode = offer.code;
+    }
+
+    const totalCouponDiscount = Math.min(calculatedSubtotal, userCouponDiscount + promoDiscount);
+    const calculatedTotal = Math.max(0, calculatedSubtotal + deliveryFee - totalCouponDiscount);
+    const snackpointsEligibleAmountAfterPromo = Math.max(0, snackpointsEligibleAmount - totalCouponDiscount);
+    const snackpointsEarned = Math.floor(snackpointsEligibleAmountAfterPromo);
 
     // === GENERATE UNIQUE ORDER NUMBER ===
     const orderNumber = await generateUniqueOrderNumber();
@@ -338,8 +397,9 @@ export async function POST(request: NextRequest) {
           deliveryNote: deliveryNote?.trim() || null,
           subtotal: calculatedSubtotal,
           deliveryFee,
-          couponDiscount,
+          couponDiscount: totalCouponDiscount,
           couponId: validatedCouponId,
+          couponCode: validatedCouponCode,
           total: calculatedTotal,
           paymentMethod: 'CASH_ON_DELIVERY',
           status: 'ORDER_RECEIVED',
@@ -367,24 +427,56 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // 4. Find or create customer
+      // 4. Customer Authentication & Creation / Update
       let customer = await tx.customer.findUnique({ where: { phone: cleanPhone } });
+      let assignedPinHash: string | undefined;
+
       if (!customer) {
+        // First-time customer: must create 4-digit PIN
+        if (!pin || typeof pin !== 'string' || !/^\d{4}$/.test(pin.trim())) {
+          throw new Error('Please create a 4-digit PIN for your account.');
+        }
+        if (pin.trim() !== (confirmPin || '').trim()) {
+          throw new Error('PIN confirmation does not match. Please re-enter.');
+        }
+        assignedPinHash = await hashCustomerPin(pin);
         customer = await tx.customer.create({
           data: {
             phone: cleanPhone,
             name: customerName.trim(),
             block: hostelName,
             roomNumber: roomNumber.trim().toUpperCase(),
+            pinHash: assignedPinHash,
           },
         });
       } else {
-        await tx.customer.update({
+        // Returning customer
+        if (customer.pinHash) {
+          if (!pin || typeof pin !== 'string' || !/^\d{4}$/.test(pin.trim())) {
+            throw new Error('Please enter your 4-digit PIN to confirm your order.');
+          }
+          const isPinValid = await verifyCustomerPin(pin, customer.pinHash);
+          if (!isPinValid) {
+            throw new Error('Incorrect 4-digit PIN. Please enter your correct PIN.');
+          }
+        } else {
+          // Existing customer without PIN yet: set up PIN
+          if (!pin || typeof pin !== 'string' || !/^\d{4}$/.test(pin.trim())) {
+            throw new Error('Please create a 4-digit PIN for your account.');
+          }
+          if (pin.trim() !== (confirmPin || '').trim()) {
+            throw new Error('PIN confirmation does not match. Please re-enter.');
+          }
+          assignedPinHash = await hashCustomerPin(pin);
+        }
+
+        customer = await tx.customer.update({
           where: { phone: cleanPhone },
           data: {
             name: customerName.trim(),
             block: hostelName,
             roomNumber: roomNumber.trim().toUpperCase(),
+            ...(assignedPinHash && { pinHash: assignedPinHash }),
           },
         });
       }
@@ -435,6 +527,21 @@ export async function POST(request: NextRequest) {
       }
 
       try {
+        revalidatePath('/', 'layout');
+        revalidatePath('/');
+        revalidatePath('/search');
+      } catch {}
+
+      for (const item of createdOrder.items) {
+        try {
+          await broadcastProductEvent('STOCK_UPDATED', {
+            id: item.productId,
+            name: item.productName,
+          });
+        } catch {}
+      }
+
+      try {
         await sendTelegramOrderNotification({
           orderNumber: createdOrder.orderNumber,
           customerName: createdOrder.customerName,
@@ -460,7 +567,24 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    return NextResponse.json(createdOrder, { status: 201 });
+    const response = NextResponse.json(createdOrder, { status: 201 });
+    try {
+      const customer = await prisma.customer.findUnique({ where: { phone: cleanPhone } });
+      if (customer) {
+        const token = await signCustomerToken({ customerId: customer.id, phone: cleanPhone });
+        response.cookies.set(CUSTOMER_COOKIE_NAME, token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/',
+          maxAge: 30 * 24 * 60 * 60,
+        });
+      }
+    } catch (tokenErr) {
+      console.error('Error signing customer token:', tokenErr);
+    }
+
+    return response;
   } catch (error: any) {
     console.error('Error placing order:', error);
     const msg = error.message || 'Something went wrong. Please try again.';

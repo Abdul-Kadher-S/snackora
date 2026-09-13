@@ -9,11 +9,13 @@ import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
 import { Footer } from '@/components/layout/Footer';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Currency } from '@/components/ui/Currency';
-import { Clock, Phone, Search, ChevronRight, PackageOpen, DoorOpen, Building2 } from 'lucide-react';
+import { Clock, Phone, Search, ChevronRight, PackageOpen, DoorOpen, Building2, RotateCcw } from 'lucide-react';
 import { useHostel } from '@/context/HostelContext';
+import { useRepeatOrder } from '@/hooks/useRepeatOrder';
 
 export function OrdersListClient() {
   const { savedPhone } = useHostel();
+  const { repeatOrder, isRepeating } = useRepeatOrder();
   const [phoneQuery, setPhoneQuery] = useState(savedPhone || '');
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -153,7 +155,7 @@ export function OrdersListClient() {
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 pt-1">
                     <div className="flex items-center gap-3">
                       <span className="flex items-center gap-1 text-slate-700 font-semibold">
                         <Building2 className="w-3.5 h-3.5 text-[#FF6B00]" />
@@ -164,9 +166,30 @@ export function OrdersListClient() {
                         Room: {order.roomNumber}
                       </span>
                     </div>
-                    <span className="text-slate-400">
-                      {order.items.length} {order.items.length === 1 ? 'item' : 'items'}
-                    </span>
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-slate-400">
+                        {order.items.length} {order.items.length === 1 ? 'item' : 'items'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          repeatOrder(
+                            order.items.map((i) => ({
+                              productId: i.productId,
+                              productName: i.productName,
+                              quantity: i.quantity,
+                            }))
+                          );
+                        }}
+                        disabled={isRepeating}
+                        className="px-3 py-1 bg-orange-50 hover:bg-[#FF6B00] text-[#FF6B00] hover:text-white font-bold rounded-lg text-xs flex items-center gap-1 transition border border-orange-200 hover:border-[#FF6B00] active:scale-95 disabled:opacity-50 cursor-pointer"
+                      >
+                        <RotateCcw className={`w-3 h-3 ${isRepeating ? 'animate-spin' : ''}`} />
+                        <span>Repeat</span>
+                      </button>
+                    </div>
                   </div>
                 </Link>
               );

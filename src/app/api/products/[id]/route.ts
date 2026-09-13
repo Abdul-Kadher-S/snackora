@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/prisma';
 import { getAdminSession } from '@/lib/auth';
+import { broadcastProductEvent } from '@/lib/supabase';
 
 export async function GET(
   request: NextRequest,
@@ -105,6 +107,18 @@ export async function PUT(
       },
     });
 
+    try {
+      revalidatePath('/', 'layout');
+      revalidatePath('/');
+      revalidatePath('/search');
+      revalidatePath('/categories');
+    } catch {}
+
+    broadcastProductEvent('PRODUCT_UPDATED', updated);
+    if (stock !== undefined) {
+      broadcastProductEvent('STOCK_UPDATED', updated);
+    }
+
     return NextResponse.json(updated);
   } catch (error: any) {
     console.error('Error updating product:', error);
@@ -126,6 +140,15 @@ export async function DELETE(
     await prisma.product.delete({
       where: { id },
     });
+
+    try {
+      revalidatePath('/', 'layout');
+      revalidatePath('/');
+      revalidatePath('/search');
+      revalidatePath('/categories');
+    } catch {}
+
+    broadcastProductEvent('PRODUCT_DELETED', { id });
 
     return NextResponse.json({ success: true, message: 'Product deleted successfully' });
   } catch (error: any) {

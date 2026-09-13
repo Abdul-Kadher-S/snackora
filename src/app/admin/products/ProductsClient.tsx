@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Product, Category, FoodType, TasteProfile, OriginType } from '@/types';
+import { useRealtimeProducts } from '@/hooks/useRealtimeProducts';
 import { Currency } from '@/components/ui/Currency';
 import { VegBadge } from '@/components/ui/VegBadge';
 import {
@@ -156,6 +157,38 @@ export function ProductsClient() {
   useEffect(() => {
     loadData();
   }, []);
+
+  useRealtimeProducts({
+    onProductCreated: (newProd) => {
+      setProducts((prev) => {
+        if (prev.some((p) => p.id === newProd.id)) return prev;
+        return [newProd, ...prev];
+      });
+    },
+    onProductUpdated: (updatedProd) => {
+      setProducts((prev) =>
+        prev.map((p) => (p.id === updatedProd.id ? { ...p, ...updatedProd } : p))
+      );
+    },
+    onProductDeleted: (deletedId) => {
+      setProducts((prev) => prev.filter((p) => p.id !== deletedId));
+    },
+    onStockUpdated: (payload) => {
+      setProducts((prev) =>
+        prev.map((p) => {
+          if (p.id === payload.id) {
+            const newStock = payload.stock !== undefined ? payload.stock : p.stock;
+            const newAvail = payload.available !== undefined ? payload.available : p.available;
+            return { ...p, ...payload, stock: newStock, available: newAvail };
+          }
+          return p;
+        })
+      );
+    },
+    onSync: () => {
+      loadData();
+    },
+  });
 
   const openNewModal = () => {
     setEditingProduct(null);
