@@ -2,8 +2,20 @@
 
 import React, { useState, useEffect } from 'react';
 import { Offer } from '@/types';
-import { Plus, Ticket, Trash2, Power, RefreshCw, X, Loader2, AlertTriangle, Clock } from 'lucide-react';
+import { Plus, Ticket, Trash2, Power, RefreshCw, X, Loader2, AlertTriangle, Clock, Calendar } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
+
+function formatTime12h(timeStr: string) {
+  if (!timeStr) return '';
+  const [hStr, mStr] = timeStr.split(':');
+  const h = parseInt(hStr, 10);
+  const m = parseInt(mStr || '0', 10);
+  if (isNaN(h)) return timeStr;
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hour12 = h % 12 || 12;
+  const minuteStr = String(m).padStart(2, '0');
+  return `${hour12}:${minuteStr} ${ampm}`;
+}
 
 export function OffersClient() {
   const [offers, setOffers] = useState<Offer[]>([]);
@@ -15,7 +27,11 @@ export function OffersClient() {
   const [discountType, setDiscountType] = useState<'PERCENTAGE' | 'FLAT'>('PERCENTAGE');
   const [discountValue, setDiscountValue] = useState('15');
   const [minOrderValue, setMinOrderValue] = useState('199');
+  const [timingType, setTimingType] = useState<'ALWAYS' | 'DATE_RANGE' | 'DAILY_WINDOW'>('ALWAYS');
+  const [validFrom, setValidFrom] = useState('');
   const [validUntil, setValidUntil] = useState('');
+  const [dailyStartTime, setDailyStartTime] = useState('00:00');
+  const [dailyEndTime, setDailyEndTime] = useState('04:00');
   const [saving, setSaving] = useState(false);
 
   // Deletion & toggle state
@@ -48,21 +64,42 @@ export function OffersClient() {
     e.preventDefault();
     if (!code.trim() || !title.trim()) return;
 
+    if (timingType === 'DAILY_WINDOW' && (!dailyStartTime || !dailyEndTime)) {
+      showToast('Please select both start time and end time for the daily window', 'error');
+      return;
+    }
+
     setSaving(true);
     try {
+      const payload: any = {
+        code: code.trim().toUpperCase(),
+        title: title.trim(),
+        description: description.trim(),
+        discountType,
+        discountValue: parseFloat(discountValue) || 10,
+        minOrderValue: parseFloat(minOrderValue) || 0,
+        active: true,
+        validFrom: null,
+        validUntil: null,
+        dailyStartTime: null,
+        dailyEndTime: null,
+      };
+
+      if (timingType === 'DATE_RANGE') {
+        payload.validFrom = validFrom ? new Date(validFrom).toISOString() : null;
+        payload.validUntil = validUntil ? new Date(validUntil).toISOString() : null;
+      } else if (timingType === 'DAILY_WINDOW') {
+        payload.dailyStartTime = dailyStartTime;
+        payload.dailyEndTime = dailyEndTime;
+        // Optionally allow date bounds too
+        payload.validFrom = validFrom ? new Date(validFrom).toISOString() : null;
+        payload.validUntil = validUntil ? new Date(validUntil).toISOString() : null;
+      }
+
       const res = await fetch('/api/offers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          code: code.trim().toUpperCase(),
-          title: title.trim(),
-          description: description.trim(),
-          discountType,
-          discountValue: parseFloat(discountValue) || 10,
-          minOrderValue: parseFloat(minOrderValue) || 0,
-          active: true,
-          validUntil: validUntil ? new Date(validUntil).toISOString() : null,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
@@ -71,7 +108,11 @@ export function OffersClient() {
         setCode('');
         setTitle('');
         setDescription('');
+        setTimingType('ALWAYS');
+        setValidFrom('');
         setValidUntil('');
+        setDailyStartTime('00:00');
+        setDailyEndTime('04:00');
         fetchOffers();
       } else {
         const err = await res.json();
@@ -235,33 +276,67 @@ export function OffersClient() {
                     <span>Min Order: ₹{offer.minOrderValue}</span>
                   </div>
 
-                  {/* Expiry timing display */}
-                  <div className="text-[11px] text-slate-400 flex items-center gap-1.5 bg-slate-900/60 px-2.5 py-1.5 rounded-xl border border-slate-800">
-                    <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                  {/* Expiry & timing display */}
+                  <div className="text-[11px] text-slate-400 flex flex-col gap-1 bg-slate-900/60 px-2.5 py-2 rounded-xl border border-slate-800">
+                    {offer.dailyStartTime && offer.dailyEndTime && (
+                      <div className="flex items-center gap-1.5 text-amber-300 font-semibold">
+                        <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <span>
+                          Everyday: {formatTime12h(offer.dailyStartTime)} – {formatTime12h(offer.dailyEndTime)}
+                        </span>
+                      </div>
+                    )}
+
+                    {offer.validFrom && (
+                      <div className="flex items-center gap-1.5 text-slate-300">
+                        <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                        <span>
+                          Starts: {new Date(offer.validFrom).toLocaleString('en-IN', {
+                            day: 'numeric',
+                            month: 'short',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true,
+                          })}
+                        </span>
+                      </div>
+                    )}
+
                     {offer.validUntil ? (
                       new Date(offer.validUntil) < new Date() ? (
-                        <span className="text-rose-400 font-bold">
-                          Expired: {new Date(offer.validUntil).toLocaleString('en-IN', {
-                            day: 'numeric',
-                            month: 'short',
-                            hour: 'numeric',
-                            minute: '2-digit',
-                            hour12: true,
-                          })}
-                        </span>
+                        <div className="flex items-center gap-1.5 text-rose-400 font-bold">
+                          <Clock className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                          <span>
+                            Expired: {new Date(offer.validUntil).toLocaleString('en-IN', {
+                              day: 'numeric',
+                              month: 'short',
+                              hour: 'numeric',
+                              minute: '2-digit',
+                              hour12: true,
+                            })}
+                          </span>
+                        </div>
                       ) : (
-                        <span className="text-amber-300 font-medium">
-                          Expires: {new Date(offer.validUntil).toLocaleString('en-IN', {
-                            day: 'numeric',
-                            month: 'short',
-                            hour: 'numeric',
-                            minute: '2-digit',
-                            hour12: true,
-                          })}
-                        </span>
+                        <div className="flex items-center gap-1.5 text-amber-300 font-medium">
+                          <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                          <span>
+                            Expires: {new Date(offer.validUntil).toLocaleString('en-IN', {
+                              day: 'numeric',
+                              month: 'short',
+                              hour: 'numeric',
+                              minute: '2-digit',
+                              hour12: true,
+                            })}
+                          </span>
+                        </div>
                       )
                     ) : (
-                      <span className="text-slate-400">No Expiry (Always Valid)</span>
+                      !offer.dailyStartTime && (
+                        <div className="flex items-center gap-1.5 text-slate-400">
+                          <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                          <span>Always Active (No Expiry)</span>
+                        </div>
+                      )
                     )}
                   </div>
 
@@ -432,18 +507,128 @@ export function OffersClient() {
                 />
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-400 uppercase mb-1 flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Expiry Date & Time (Optional)</span>
+              {/* Timing / Schedule Settings */}
+              <div className="space-y-3 pt-2 border-t border-slate-800">
+                <label className="block font-bold text-slate-300 uppercase flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-[#FF6B00]" />
+                  <span>Coupon Timing & Availability *</span>
                 </label>
-                <input
-                  type="datetime-local"
-                  value={validUntil}
-                  onChange={(e) => setValidUntil(e.target.value)}
-                  className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-sm font-medium text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/50"
-                />
-                <p className="text-[10px] text-slate-500 mt-1">Leave empty for a coupon with no expiration date.</p>
+
+                {/* Timing Type Selector */}
+                <div className="grid grid-cols-3 gap-2 bg-slate-950/60 p-1 rounded-2xl border border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setTimingType('ALWAYS')}
+                    className={`py-2 px-2 rounded-xl font-bold text-[11px] transition text-center ${
+                      timingType === 'ALWAYS'
+                        ? 'bg-[#FF6B00] text-white shadow'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Always Active
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTimingType('DATE_RANGE')}
+                    className={`py-2 px-2 rounded-xl font-bold text-[11px] transition text-center ${
+                      timingType === 'DATE_RANGE'
+                        ? 'bg-[#FF6B00] text-white shadow'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Date & Time
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTimingType('DAILY_WINDOW')}
+                    className={`py-2 px-2 rounded-xl font-bold text-[11px] transition text-center ${
+                      timingType === 'DAILY_WINDOW'
+                        ? 'bg-[#FF6B00] text-white shadow'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Everyday Time
+                  </button>
+                </div>
+
+                {/* Conditional Fields based on Timing Type */}
+                {timingType === 'DATE_RANGE' && (
+                  <div className="space-y-2.5 bg-slate-800/60 p-3 rounded-2xl border border-slate-700/60">
+                    <p className="text-[11px] text-slate-400">
+                      Set when this coupon becomes active and when it automatically expires:
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block font-medium text-[11px] text-slate-400 mb-1">
+                          Start Date & Time
+                        </label>
+                        <input
+                          type="datetime-local"
+                          value={validFrom}
+                          onChange={(e) => setValidFrom(e.target.value)}
+                          className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-[#FF6B00]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-medium text-[11px] text-slate-400 mb-1">
+                          End Date & Time
+                        </label>
+                        <input
+                          type="datetime-local"
+                          value={validUntil}
+                          onChange={(e) => setValidUntil(e.target.value)}
+                          className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-[#FF6B00]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {timingType === 'DAILY_WINDOW' && (
+                  <div className="space-y-2.5 bg-slate-800/60 p-3 rounded-2xl border border-slate-700/60">
+                    <p className="text-[11px] text-amber-300 font-medium">
+                      Everyday at the particular time (e.g. Midnight snack coupon between 12:00 AM and 04:00 AM):
+                    </p>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block font-medium text-[11px] text-slate-400 mb-1">
+                          Daily Start Time *
+                        </label>
+                        <input
+                          type="time"
+                          required
+                          value={dailyStartTime}
+                          onChange={(e) => setDailyStartTime(e.target.value)}
+                          className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white font-bold focus:outline-none focus:ring-1 focus:ring-[#FF6B00]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-medium text-[11px] text-slate-400 mb-1">
+                          Daily End Time *
+                        </label>
+                        <input
+                          type="time"
+                          required
+                          value={dailyEndTime}
+                          onChange={(e) => setDailyEndTime(e.target.value)}
+                          className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white font-bold focus:outline-none focus:ring-1 focus:ring-[#FF6B00]"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-700/40">
+                      <label className="block font-medium text-[11px] text-slate-400 mb-1">
+                        Optional Campaign Expiry (Until date)
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={validUntil}
+                        onChange={(e) => setValidUntil(e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-[#FF6B00]"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="pt-3 border-t border-slate-800 flex justify-end gap-2">

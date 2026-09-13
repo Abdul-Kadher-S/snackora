@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/prisma';
 import { getAdminSession } from '@/lib/auth';
-import { broadcastOrderEvent, broadcastProductEvent } from '@/lib/supabase';
+import { broadcastOrderEvent, broadcastProductEvent, broadcastSnackpointsEvent } from '@/lib/supabase';
 
 export async function GET(
   request: NextRequest,
@@ -235,6 +235,17 @@ export async function PATCH(
 
     if (updated) {
       broadcastOrderEvent('ORDER_UPDATED', updated);
+
+      if (status === 'DELIVERED' && existingOrder.status !== 'DELIVERED' && existingOrder.snackpointsEarned > 0) {
+        broadcastSnackpointsEvent('SNACKPOINTS_CREDITED', {
+          phone: existingOrder.phone,
+          orderNumber: existingOrder.orderNumber,
+          points: existingOrder.snackpointsEarned,
+          title: '⭐ SnackPoints Credited!',
+          message: `Congratulations! ${existingOrder.snackpointsEarned} SnackPoints have been credited to your account for order #${existingOrder.orderNumber}!`,
+        });
+      }
+
       if (status === 'CANCELLED') {
         try {
           revalidatePath('/', 'layout');

@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { DeliverySettings, HOSTEL_BLOCKS_CONFIG } from '@/types';
+import { getSupabaseClient } from '@/lib/supabase';
 
 export const HOSTEL_BLOCKS = HOSTEL_BLOCKS_CONFIG.map(
   (b) => `${b.name} — ${b.timing}`
@@ -302,6 +303,56 @@ export function HostelProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     refreshSettings();
   }, []);
+
+  // Realtime push notification & points listener for credited SnackPoints on delivery
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    const channel = supabase.channel('snackora_customer_notifications');
+    channel.on('broadcast', { event: 'SNACKPOINTS_CREDITED' }, (payload) => {
+      const data = payload?.payload;
+      if (!data) return;
+
+      const currentPhone = (customer?.phone || savedPhone || '').replace(/\D/g, '').slice(-10);
+      const targetPhone = (data.phone || '').replace(/\D/g, '').slice(-10);
+
+      if (currentPhone && targetPhone && currentPhone === targetPhone) {
+        // 1. Update customer snackpoints
+        setCustomer((prev) =>
+          prev ? { ...prev, availableSnackpoints: (prev.availableSnackpoints || 0) + (data.points || 0) } : prev
+        );
+        try {
+          const cached = parseInt(localStorage.getItem('snackora_cached_points') || '0', 10);
+          localStorage.setItem('snackora_cached_points', String(cached + (data.points || 0)));
+          window.dispatchEvent(new Event('snackpoints_updated'));
+        } catch {}
+
+        // 2. Check if push notifications are enabled
+        const notifEnabled = typeof window !== 'undefined' && localStorage.getItem('snackora_points_notif') === 'true';
+        if (
+          notifEnabled &&
+          typeof window !== 'undefined' &&
+          'Notification' in window &&
+          Notification.permission === 'granted'
+        ) {
+          try {
+            new Notification(data.title || '⭐ SnackPoints Credited!', {
+              body: data.message || `You earned ${data.points} SnackPoints!`,
+              icon: '/favicon.ico',
+            });
+          } catch (e) {
+            console.error('Notification error:', e);
+          }
+        }
+      }
+    });
+
+    channel.subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [customer?.phone, savedPhone]);
 
   return (
     <HostelContext.Provider

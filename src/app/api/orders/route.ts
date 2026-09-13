@@ -5,6 +5,7 @@ import { broadcastOrderEvent, broadcastProductEvent } from '@/lib/supabase';
 import { sendTelegramOrderNotification } from '@/lib/telegram';
 import { hashCustomerPin, verifyCustomerPin, signCustomerToken, CUSTOMER_COOKIE_NAME } from '@/lib/customer-auth';
 import { ensureDbColumns } from '@/lib/db-init';
+import { checkOfferTiming } from '@/lib/offer-timing';
 
 export async function GET(request: NextRequest) {
   try {
@@ -285,18 +286,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: `Coupon code "${normalizedPromoCode}" is invalid.` }, { status: 400 });
       }
 
-      if (prefetchedOffer.validUntil && new Date(prefetchedOffer.validUntil) < new Date()) {
-        const expiryFormatted = new Date(prefetchedOffer.validUntil).toLocaleString('en-IN', {
-          timeZone: 'Asia/Kolkata',
-          day: 'numeric',
-          month: 'short',
-          year: 'numeric',
-          hour: 'numeric',
-          minute: '2-digit',
-          hour12: true,
-        });
+      const timing = checkOfferTiming(prefetchedOffer);
+      if (!timing.valid) {
         return NextResponse.json(
-          { error: `Coupon code "${prefetchedOffer.code}" expired on ${expiryFormatted}.` },
+          { error: timing.reason },
           { status: 400 }
         );
       }

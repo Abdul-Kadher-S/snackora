@@ -81,3 +81,32 @@ export async function broadcastProductEvent(
     console.error('Failed to broadcast realtime product event:', error);
   }
 }
+
+/**
+ * Broadcasts a real-time snackpoints credit notification across customer clients.
+ */
+export async function broadcastSnackpointsEvent(
+  event: 'SNACKPOINTS_CREDITED',
+  payload: {
+    phone: string;
+    orderNumber: string;
+    points: number;
+    title: string;
+    message: string;
+  }
+) {
+  try {
+    const client = getSupabaseClient();
+    if (!client) return;
+
+    const channel = client.channel('snackora_customer_notifications');
+    await channel.send({
+      type: 'broadcast',
+      event,
+      payload,
+    });
+  } catch (error) {
+    console.error('Failed to broadcast realtime snackpoints event:', error);
+  }
+}
+

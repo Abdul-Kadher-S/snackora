@@ -61,8 +61,17 @@ export async function PATCH(
     if (body.minOrderValue !== undefined) {
       updateData.minOrderValue = parseFloat(body.minOrderValue) || 0;
     }
+    if (body.validFrom !== undefined) {
+      updateData.validFrom = body.validFrom ? new Date(body.validFrom) : null;
+    }
     if (body.validUntil !== undefined) {
       updateData.validUntil = body.validUntil ? new Date(body.validUntil) : null;
+    }
+    if (body.dailyStartTime !== undefined) {
+      updateData.dailyStartTime = body.dailyStartTime ? String(body.dailyStartTime).trim() : null;
+    }
+    if (body.dailyEndTime !== undefined) {
+      updateData.dailyEndTime = body.dailyEndTime ? String(body.dailyEndTime).trim() : null;
     }
 
     const updated = await prisma.offer.update({

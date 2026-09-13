@@ -181,7 +181,10 @@ export interface Offer {
   discountValue: number;
   minOrderValue: number;
   active: boolean;
+  validFrom?: string | null;
   validUntil?: string | null;
+  dailyStartTime?: string | null;
+  dailyEndTime?: string | null;
   createdAt: string;
 }
 

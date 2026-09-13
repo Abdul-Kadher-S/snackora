@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { checkOfferTiming } from '@/lib/offer-timing';
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,19 +30,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 2. Check if expired
-    if (offer.validUntil && new Date(offer.validUntil) < new Date()) {
-      const expiryFormatted = new Date(offer.validUntil).toLocaleString('en-IN', {
-        timeZone: 'Asia/Kolkata',
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true,
-      });
+    // 2. Check timing (start date, expiry date, daily recurring window)
+    const timing = checkOfferTiming(offer);
+    if (!timing.valid) {
       return NextResponse.json(
-        { error: `This coupon code expired on ${expiryFormatted}.` },
+        { error: timing.reason },
         { status: 400 }
       );
     }
