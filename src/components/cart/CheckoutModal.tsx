@@ -40,6 +40,7 @@ export function CheckoutModal() {
     selectedCoupon,
     setSelectedCoupon,
     appliedPromo,
+    setAppliedPromo,
   } = useCart();
   const {
     selectedHostel,
@@ -97,13 +98,38 @@ export function CheckoutModal() {
       const res = await fetch(`/api/coupons?phone=${cleanPhone}`);
       if (res.ok) {
         const data = await res.json();
-        setAvailableCoupons(data.available || []);
+        const available = data.available || [];
+        setAvailableCoupons(available);
+        if (selectedCoupon && !available.some((c: any) => c.id === selectedCoupon.id)) {
+          setSelectedCoupon(null);
+          showToast('Coupon removed because it does not belong to this mobile number.', 'info');
+        }
       }
     } catch (e) {
       console.error('Failed to fetch coupons:', e);
     } finally {
       setLoadingCoupons(false);
     }
+  };
+
+  // Re-verify applied promo code when customer phone number is entered or changed
+  const validatePromoForPhone = async (cleanPhone: string, promoCode: string) => {
+    try {
+      const res = await fetch('/api/coupons/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: promoCode,
+          subtotal,
+          phone: cleanPhone,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.valid) {
+        setAppliedPromo(null);
+        setErrorMsg(`Coupon ${promoCode} removed: ${data.error || 'Not eligible for this account'}`);
+      }
+    } catch {}
   };
 
   // Check account status whenever phone is 10 digits
@@ -145,21 +171,34 @@ export function CheckoutModal() {
 
   useEffect(() => {
     if (isCheckoutOpen) {
-      const cleanPhone = phone.replace(/\D/g, '');
+      const cleanPhone = (customer?.phone || phone).replace(/\D/g, '');
       if (cleanPhone.length === 10) {
         fetchCoupons(cleanPhone);
         checkCustomerAccount(cleanPhone);
+        if (appliedPromo) {
+          validatePromoForPhone(cleanPhone, appliedPromo.code);
+        }
       }
     }
-  }, [isCheckoutOpen, phone]);
+  }, [isCheckoutOpen, phone, customer?.phone]);
 
-  // Sync initial props
+  // Sync initial props from customer session or saved values
   useEffect(() => {
-    if (savedName && !customerName) setCustomerName(savedName);
-    if (savedPhone && !phone) setPhone(savedPhone);
-    if (savedRoom && !roomNumber) setRoomNumber(savedRoom);
-    if (selectedHostel && !hostel) setHostel(selectedHostel);
-  }, [savedName, savedPhone, savedRoom, selectedHostel]);
+    if (customer) {
+      if (!customerName && customer.name) setCustomerName(customer.name);
+      if (!phone && customer.phone) setPhone(customer.phone);
+      if (!roomNumber && customer.roomNumber) setRoomNumber(customer.roomNumber);
+      if (customer.block) {
+        const match = HOSTEL_BLOCKS.find((b) => b.startsWith(customer.block!));
+        if (match && !hostel) setHostel(match);
+      }
+    } else {
+      if (savedName && !customerName) setCustomerName(savedName);
+      if (savedPhone && !phone) setPhone(savedPhone);
+      if (savedRoom && !roomNumber) setRoomNumber(savedRoom);
+      if (selectedHostel && !hostel) setHostel(selectedHostel);
+    }
+  }, [savedName, savedPhone, savedRoom, selectedHostel, customer]);
 
   // Do not render CheckoutModal on admin pages or when closed
   if (pathname.startsWith('/admin') || !isCheckoutOpen) return null;
@@ -238,6 +277,20 @@ export function CheckoutModal() {
 
     if (cart.length === 0) {
       setErrorMsg('Your cart is empty.');
+      return;
+    }
+
+    // Minimum Order Value check for applied promo code
+    const promoMinOrder = appliedPromo?.minOrderValue ?? 0;
+    if (appliedPromo && promoMinOrder > 0 && subtotal < promoMinOrder) {
+      setErrorMsg(`Order must be above ₹${promoMinOrder} to use coupon ${appliedPromo.code}. Add snacks worth ₹${Math.ceil(promoMinOrder - subtotal)} more.`);
+      return;
+    }
+
+    // Snackora Coupon Ownership Check
+    if (selectedCoupon && availableCoupons.length > 0 && !availableCoupons.some((c) => c.id === selectedCoupon.id)) {
+      setSelectedCoupon(null);
+      setErrorMsg('The selected coupon does not belong to this mobile number and has been removed.');
       return;
     }
 

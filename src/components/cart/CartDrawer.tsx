@@ -21,6 +21,9 @@ import {
   Check,
   Loader2,
   Phone,
+  AlertCircle,
+  AlertTriangle,
+  User,
 } from 'lucide-react';
 import { useHostel } from '@/context/HostelContext';
 import { useToast } from '@/context/ToastContext';
@@ -44,6 +47,7 @@ export function CartDrawer() {
   const { showToast } = useToast();
 
   const [promoInput, setPromoInput] = useState('');
+  const [promoError, setPromoError] = useState('');
   const [applyingPromo, setApplyingPromo] = useState(false);
 
   const {
@@ -53,15 +57,19 @@ export function CartDrawer() {
     getFreeDeliveryRemaining,
     deliverySettings,
     isDeliveryAvailable,
+    customer,
+    isCustomerLoggedIn,
+    setIsLoginModalOpen,
   } = useHostel();
 
-  const [phone, setPhone] = useState(savedPhone || '');
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [loadingCoupons, setLoadingCoupons] = useState(false);
 
-  // Fetch coupons for this phone number
+  const activePhone = customer?.phone || savedPhone || '';
+
+  // Fetch coupons strictly for the logged-in customer's phone number
   const fetchCoupons = async (ph?: string) => {
-    const clean = (ph || phone).replace(/\D/g, '');
+    const clean = (ph || activePhone).replace(/\D/g, '');
     if (clean.length !== 10) {
       setCoupons([]);
       return;
@@ -82,14 +90,14 @@ export function CartDrawer() {
 
   useEffect(() => {
     if (isCartOpen) {
-      if (savedPhone) {
-        setPhone(savedPhone);
-        fetchCoupons(savedPhone);
-      } else if (phone.length === 10) {
-        fetchCoupons(phone);
+      if (customer?.phone) {
+        fetchCoupons(customer.phone);
+      } else {
+        setCoupons([]);
+        setSelectedCoupon(null);
       }
     }
-  }, [isCartOpen, savedPhone]);
+  }, [isCartOpen, customer?.phone]);
 
   // Do not render CartDrawer on admin pages or when closed
   if (pathname.startsWith('/admin') || !isCartOpen) return null;
@@ -107,6 +115,7 @@ export function CartDrawer() {
     e.preventDefault();
     if (!promoInput.trim()) return;
     setApplyingPromo(true);
+    setPromoError('');
     try {
       const res = await fetch('/api/coupons/validate', {
         method: 'POST',
@@ -114,7 +123,7 @@ export function CartDrawer() {
         body: JSON.stringify({
           code: promoInput.trim(),
           subtotal,
-          phone: savedPhone || phone,
+          phone: activePhone,
         }),
       });
       const data = await res.json();
@@ -124,13 +133,18 @@ export function CartDrawer() {
           showToast('Replaced SnackPoints coupon. Only 1 coupon discount can be redeemed per order.', 'info');
         }
         setAppliedPromo(data);
+        setPromoError('');
         showToast(`🎉 Coupon ${data.code} applied! Saved ₹${data.discountAmount}`, 'success');
         setPromoInput('');
       } else {
-        showToast(data.error || 'Invalid coupon code', 'error');
+        const errMsg = data.error || 'Invalid coupon code';
+        setPromoError(errMsg);
+        showToast(errMsg, 'error');
       }
     } catch {
-      showToast('Failed to validate coupon code.', 'error');
+      const errMsg = 'Failed to validate coupon code. Please try again.';
+      setPromoError(errMsg);
+      showToast(errMsg, 'error');
     } finally {
       setApplyingPromo(false);
     }
@@ -284,118 +298,119 @@ export function CartDrawer() {
                 </div>
 
                 {appliedPromo ? (
-                  <div className="flex items-center justify-between bg-white border border-emerald-300 rounded-xl p-2.5 shadow-xs">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center">
-                        <Check className="w-4 h-4 stroke-[3]" />
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between bg-white border border-emerald-300 rounded-xl p-2.5 shadow-xs">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                          <Check className="w-4 h-4 stroke-[3]" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-black text-slate-900">{appliedPromo.code}</span>
+                            <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">
+                              -₹{appliedPromo.discountAmount}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-500">{appliedPromo.title || 'Promo discount applied'}</p>
+                        </div>
                       </div>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-black text-slate-900">{appliedPromo.code}</span>
-                          <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">
-                            -₹{appliedPromo.discountAmount}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAppliedPromo(null);
+                          setPromoError('');
+                          showToast('Coupon removed.', 'info');
+                        }}
+                        className="text-xs text-rose-500 hover:text-rose-700 font-bold px-2 py-1 rounded-lg hover:bg-rose-50 transition cursor-pointer"
+                      >
+                        Remove
+                      </button>
+                    </div>
+
+                    {/* Minimum Order Value Alert if subtotal is below limit */}
+                    {(appliedPromo.minOrderValue ?? 0) > 0 && subtotal < (appliedPromo.minOrderValue ?? 0) && (
+                      <div className="flex items-start gap-2 p-2.5 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900 font-bold animate-in fade-in">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                          <span>Order must be above ₹{appliedPromo.minOrderValue} for coupon {appliedPromo.code}.</span>
+                          <span className="block text-[11px] text-amber-800 font-normal mt-0.5">
+                            Add snacks worth ₹{Math.ceil((appliedPromo.minOrderValue ?? 0) - subtotal)} more to activate discount.
                           </span>
                         </div>
-                        <p className="text-[10px] text-slate-500">{appliedPromo.title || 'Promo discount applied'}</p>
                       </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAppliedPromo(null);
-                        showToast('Coupon removed.', 'info');
-                      }}
-                      className="text-xs text-rose-500 hover:text-rose-700 font-bold px-2 py-1 rounded-lg hover:bg-rose-50 transition cursor-pointer"
-                    >
-                      Remove
-                    </button>
+                    )}
                   </div>
                 ) : (
-                  <form onSubmit={handleApplyPromo} className="flex gap-2">
-                    <input
-                      type="text"
-                      value={promoInput}
-                      onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
-                      placeholder="Enter coupon code"
-                      className="flex-1 px-3 py-2 bg-white border border-orange-200 rounded-xl text-xs font-bold text-slate-900 placeholder:text-slate-400 uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/40"
-                    />
-                    <button
-                      type="submit"
-                      disabled={applyingPromo || !promoInput.trim()}
-                      className="px-4 py-2 bg-[#FF6B00] hover:bg-[#EA580C] disabled:bg-slate-300 text-white font-bold rounded-xl text-xs transition cursor-pointer disabled:cursor-not-allowed flex items-center gap-1"
-                    >
-                      {applyingPromo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Apply'}
-                    </button>
-                  </form>
+                  <div className="space-y-2">
+                    <form onSubmit={handleApplyPromo} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={promoInput}
+                        onChange={(e) => {
+                          setPromoInput(e.target.value.toUpperCase());
+                          if (promoError) setPromoError('');
+                        }}
+                        placeholder="Enter coupon code"
+                        className="flex-1 px-3 py-2 bg-white border border-orange-200 rounded-xl text-xs font-bold text-slate-900 placeholder:text-slate-400 uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/40"
+                      />
+                      <button
+                        type="submit"
+                        disabled={applyingPromo || !promoInput.trim()}
+                        className="px-4 py-2 bg-[#FF6B00] hover:bg-[#EA580C] disabled:bg-slate-300 text-white font-bold rounded-xl text-xs transition cursor-pointer disabled:cursor-not-allowed flex items-center gap-1"
+                      >
+                        {applyingPromo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Apply'}
+                      </button>
+                    </form>
+
+                    {/* Explicit Inline Error Message in Cart Drawer */}
+                    {promoError && (
+                      <div className="flex items-start gap-2 p-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-bold animate-in fade-in">
+                        <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                        <span>{promoError}</span>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
 
-              {/* Coupons & Discounts Section In Cart */}
+              {/* Snackora Coupons Section (Strictly for Logged-In Customer Phone) */}
               <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-3.5 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <Gift className="w-4 h-4 text-amber-600" />
-                    <span className="text-xs font-black text-amber-900">SnackPoints Coupons</span>
+                    <span className="text-xs font-black text-amber-900">Snackora Coupons</span>
+                    <span className="text-[10px] text-amber-700 font-semibold">(1 per order)</span>
                   </div>
                   {loadingCoupons && (
                     <Loader2 className="w-3.5 h-3.5 text-amber-600 animate-spin" />
                   )}
                 </div>
 
-                {phone.length < 10 ? (
-                  <div className="space-y-2">
-                    <p className="text-[11px] text-amber-800">
-                      Enter your mobile number to view and apply your coupons:
+                {!isCustomerLoggedIn || !customer?.phone ? (
+                  <div className="space-y-2 bg-white/80 border border-amber-200 rounded-xl p-3 text-center">
+                    <p className="text-[11px] text-amber-900 font-medium">
+                      Sign in with your mobile number to view and apply your Snackora coupons.
                     </p>
-                    <div className="flex gap-2">
-                      <div className="relative flex-1">
-                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400">+91</span>
-                        <input
-                          type="tel"
-                          maxLength={10}
-                          value={phone}
-                          onChange={(e) => {
-                            const val = e.target.value.replace(/\D/g, '');
-                            setPhone(val);
-                            if (val.length === 10) {
-                              fetchCoupons(val);
-                            }
-                          }}
-                          placeholder="9876543210"
-                          className="w-full pl-9 pr-3 py-1.5 bg-white border border-amber-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/40"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => fetchCoupons(phone)}
-                        className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs transition"
-                      >
-                        Apply
-                      </button>
-                    </div>
-                  </div>
-                ) : coupons.length === 0 ? (
-                  <div className="flex items-center justify-between text-[11px] text-amber-800">
-                    <span>No active coupons for {phone}.</span>
                     <button
                       type="button"
-                      onClick={() => setPhone('')}
-                      className="text-[10px] text-amber-600 font-bold underline"
+                      onClick={() => {
+                        setIsCartOpen(false);
+                        setIsLoginModalOpen(true);
+                      }}
+                      className="px-4 py-2 bg-[#FF6B00] hover:bg-[#EA580C] text-white font-bold rounded-xl text-xs transition shadow-sm inline-flex items-center gap-1.5 cursor-pointer"
                     >
-                      Change #
+                      <User className="w-3.5 h-3.5" />
+                      <span>Sign In with Mobile</span>
                     </button>
+                  </div>
+                ) : coupons.length === 0 ? (
+                  <div className="text-[11px] text-amber-800 bg-white/70 border border-amber-200 rounded-xl p-2.5">
+                    No active coupons found for <strong>+91 {customer.phone}</strong>. Place orders to earn SnackPoints and unlock coupons!
                   </div>
                 ) : (
                   <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-[10px] text-slate-500 mb-1">
-                      <span>Select a coupon to apply discount:</span>
-                      <button
-                        type="button"
-                        onClick={() => setPhone('')}
-                        className="text-amber-700 font-bold underline"
-                      >
-                        Change #
-                      </button>
+                    <div className="text-[10px] text-slate-500 mb-1">
+                      Available coupons for <strong>+91 {customer.phone}</strong>:
                     </div>
 
                     {coupons.map((c) => {
@@ -450,7 +465,7 @@ export function CartDrawer() {
                       <button
                         type="button"
                         onClick={() => setSelectedCoupon(null)}
-                        className="text-[10px] text-slate-500 hover:text-rose-600 font-semibold underline block pt-1"
+                        className="text-[10px] text-slate-500 hover:text-rose-600 font-semibold underline block pt-1 cursor-pointer"
                       >
                         Remove selected coupon
                       </button>

@@ -84,7 +84,10 @@ export async function POST(request: NextRequest) {
     }
 
     // === PHONE VALIDATION ===
-    const cleanPhone = (phone || '').replace(/\D/g, '');
+    let cleanPhone = (phone || '').replace(/\D/g, '');
+    if (cleanPhone.length > 10 && cleanPhone.startsWith('91')) {
+      cleanPhone = cleanPhone.slice(-10);
+    }
     if (cleanPhone.length !== 10) {
       return NextResponse.json({ error: 'Please enter a valid 10-digit mobile number using numbers only.' }, { status: 400 });
     }
@@ -252,8 +255,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid coupon.' }, { status: 400 });
       }
 
-      if (prefetchedCustomer && prefetchedCoupon.customerId !== prefetchedCustomer.id) {
-        return NextResponse.json({ error: 'This coupon does not belong to your account.' }, { status: 400 });
+      if (!prefetchedCustomer || prefetchedCoupon.customerId !== prefetchedCustomer.id || prefetchedCustomer.phone !== cleanPhone) {
+        return NextResponse.json(
+          { error: 'Snackora coupons can only be redeemed on the mobile number they belong to. You cannot use coupons from another phone number.' },
+          { status: 403 }
+        );
       }
 
       if (prefetchedCoupon.status !== 'AVAILABLE') {

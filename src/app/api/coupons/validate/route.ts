@@ -12,7 +12,10 @@ export async function POST(request: NextRequest) {
 
     const normalizedCode = code.trim().toUpperCase();
     const numSubtotal = parseFloat(subtotal) || 0;
-    const cleanPhone = (phone || '').replace(/\D/g, '');
+    let cleanPhone = (phone || '').replace(/\D/g, '');
+    if (cleanPhone.length > 10 && cleanPhone.startsWith('91')) {
+      cleanPhone = cleanPhone.slice(-10);
+    }
 
     // 1. Look up admin-created coupon in Offer table
     const offer = await prisma.offer.findUnique({
