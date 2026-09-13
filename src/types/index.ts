@@ -181,6 +181,7 @@ export interface Offer {
   discountValue: number;
   minOrderValue: number;
   active: boolean;
+  validUntil?: string | null;
   createdAt: string;
 }
 

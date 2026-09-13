@@ -21,6 +21,9 @@ import {
   MessageSquare,
   Banknote,
   Send,
+  Ticket,
+  Star,
+  Tag,
 } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 import { useRealtimeOrders } from '@/hooks/useRealtimeOrders';
@@ -297,7 +300,7 @@ export function OrdersClient() {
                     )}
                   </div>
 
-                  {/* Payment & COD Badge */}
+                  {/* Payment & Financial Breakage */}
                   <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
                     <div>
                       <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1 mb-1">
@@ -310,9 +313,44 @@ export function OrdersClient() {
                       </span>
                     </div>
 
-                    <span className="text-[10px] text-slate-500 mt-2">
-                      Delivery Fee: ₹0 (Hostel Free Policy)
-                    </span>
+                    {/* Financial Breakage with Coupon Codes */}
+                    <div className="mt-3 pt-2.5 border-t border-slate-800 space-y-1.5 text-xs">
+                      <div className="flex items-center justify-between text-slate-400">
+                        <span>Items Subtotal:</span>
+                        <span className="text-slate-200 font-semibold">₹{order.subtotal}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-400">
+                        <span>Delivery Fee:</span>
+                        <span className="text-slate-200 font-semibold">
+                          {order.deliveryFee === 0 ? 'FREE' : `₹${order.deliveryFee}`}
+                        </span>
+                      </div>
+                      {order.couponDiscount > 0 ? (
+                        <div className="flex items-center justify-between text-emerald-400 font-bold bg-emerald-950/40 px-2 py-1 rounded-lg border border-emerald-900/50">
+                          <span className="flex items-center gap-1 text-[11px]">
+                            {order.couponCode ? (
+                              <>
+                                <Ticket className="w-3 h-3 text-amber-400" />
+                                <span>Promo: {order.couponCode}</span>
+                              </>
+                            ) : order.couponId ? (
+                              <>
+                                <Star className="w-3 h-3 text-amber-400" />
+                                <span>SnackPoints Coupon</span>
+                              </>
+                            ) : (
+                              <span>Discount</span>
+                            )}
+                          </span>
+                          <span>-₹{order.couponDiscount}</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between text-slate-500 text-[11px]">
+                          <span>Coupon:</span>
+                          <span>None applied</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 

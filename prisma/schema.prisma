@@ -113,15 +113,16 @@ model StoreSetting {
 }
 
 model Offer {
-  id            String   @id @default(cuid())
-  code          String   @unique
+  id            String    @id @default(cuid())
+  code          String    @unique
   title         String
   description   String
   discountType  String   // PERCENTAGE, FLAT
   discountValue Float
-  minOrderValue Float    @default(0)
-  active        Boolean  @default(true)
-  createdAt     DateTime @default(now())
+  minOrderValue Float     @default(0)
+  active        Boolean   @default(true)
+  validUntil    DateTime?
+  createdAt     DateTime  @default(now())
 }
 
 model SnackpointTransaction {

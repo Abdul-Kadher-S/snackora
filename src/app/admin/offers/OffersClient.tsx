@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Offer } from '@/types';
-import { Plus, Ticket, Trash2, Power, RefreshCw, X, Loader2, AlertTriangle } from 'lucide-react';
+import { Plus, Ticket, Trash2, Power, RefreshCw, X, Loader2, AlertTriangle, Clock } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 
 export function OffersClient() {
@@ -15,6 +15,7 @@ export function OffersClient() {
   const [discountType, setDiscountType] = useState<'PERCENTAGE' | 'FLAT'>('PERCENTAGE');
   const [discountValue, setDiscountValue] = useState('15');
   const [minOrderValue, setMinOrderValue] = useState('199');
+  const [validUntil, setValidUntil] = useState('');
   const [saving, setSaving] = useState(false);
 
   // Deletion & toggle state
@@ -60,6 +61,7 @@ export function OffersClient() {
           discountValue: parseFloat(discountValue) || 10,
           minOrderValue: parseFloat(minOrderValue) || 0,
           active: true,
+          validUntil: validUntil ? new Date(validUntil).toISOString() : null,
         }),
       });
 
@@ -69,6 +71,7 @@ export function OffersClient() {
         setCode('');
         setTitle('');
         setDescription('');
+        setValidUntil('');
         fetchOffers();
       } else {
         const err = await res.json();
@@ -230,6 +233,36 @@ export function OffersClient() {
                         : `Flat ₹${offer.discountValue} OFF`}
                     </span>
                     <span>Min Order: ₹{offer.minOrderValue}</span>
+                  </div>
+
+                  {/* Expiry timing display */}
+                  <div className="text-[11px] text-slate-400 flex items-center gap-1.5 bg-slate-900/60 px-2.5 py-1.5 rounded-xl border border-slate-800">
+                    <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                    {offer.validUntil ? (
+                      new Date(offer.validUntil) < new Date() ? (
+                        <span className="text-rose-400 font-bold">
+                          Expired: {new Date(offer.validUntil).toLocaleString('en-IN', {
+                            day: 'numeric',
+                            month: 'short',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true,
+                          })}
+                        </span>
+                      ) : (
+                        <span className="text-amber-300 font-medium">
+                          Expires: {new Date(offer.validUntil).toLocaleString('en-IN', {
+                            day: 'numeric',
+                            month: 'short',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true,
+                          })}
+                        </span>
+                      )
+                    ) : (
+                      <span className="text-slate-400">No Expiry (Always Valid)</span>
+                    )}
                   </div>
 
                   {/* Actions: Activate / Deactivate & Delete */}
@@ -397,6 +430,20 @@ export function OffersClient() {
                   onChange={(e) => setMinOrderValue(e.target.value)}
                   className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-sm focus:outline-none"
                 />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-400 uppercase mb-1 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Expiry Date & Time (Optional)</span>
+                </label>
+                <input
+                  type="datetime-local"
+                  value={validUntil}
+                  onChange={(e) => setValidUntil(e.target.value)}
+                  className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-sm font-medium text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/50"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">Leave empty for a coupon with no expiration date.</p>
               </div>
 
               <div className="pt-3 border-t border-slate-800 flex justify-end gap-2">

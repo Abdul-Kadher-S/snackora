@@ -20,24 +20,49 @@ export async function POST(request: NextRequest) {
     });
 
     if (!offer) {
-      return NextResponse.json({ error: `Coupon code "${normalizedCode}" is invalid.` }, { status: 404 });
+      return NextResponse.json(
+        { error: `Coupon code "${normalizedCode}" does not exist. Please check the code and try again.` },
+        { status: 404 }
+      );
     }
 
+    // 2. Check if expired
+    if (offer.validUntil && new Date(offer.validUntil) < new Date()) {
+      const expiryFormatted = new Date(offer.validUntil).toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      });
+      return NextResponse.json(
+        { error: `This coupon code expired on ${expiryFormatted}.` },
+        { status: 400 }
+      );
+    }
+
+    // 3. Check if active
     if (!offer.active) {
-      return NextResponse.json({ error: `Coupon code "${offer.code}" is no longer active.` }, { status: 400 });
+      return NextResponse.json(
+        { error: `Coupon code "${offer.code}" is currently deactivated or no longer available.` },
+        { status: 400 }
+      );
     }
 
-    // 2. Minimum order value check
+    // 4. Minimum order value check with exact deficit
     if (offer.minOrderValue > 0 && numSubtotal < offer.minOrderValue) {
+      const deficit = Math.ceil(offer.minOrderValue - numSubtotal);
       return NextResponse.json(
         {
-          error: `Minimum order value of ₹${offer.minOrderValue} required for coupon ${offer.code}. (Your subtotal is ₹${numSubtotal.toFixed(0)})`,
+          error: `Minimum order value of ₹${offer.minOrderValue} required for coupon ${offer.code}. Add snacks worth ₹${deficit} more to redeem.`,
         },
         { status: 400 }
       );
     }
 
-    // 3. One-time per customer check
+    // 5. One-time per customer check
     if (cleanPhone.length === 10) {
       const pastUsedOrder = await prisma.order.findFirst({
         where: {
@@ -50,7 +75,7 @@ export async function POST(request: NextRequest) {
       if (pastUsedOrder) {
         return NextResponse.json(
           {
-            error: `You have already used coupon code ${offer.code} on a previous order (${pastUsedOrder.orderNumber}). Coupons can only be used once per customer.`,
+            error: `You have already used coupon code ${offer.code} on previous order #${pastUsedOrder.orderNumber}. This coupon is strictly limited to 1 use per customer.`,
           },
           { status: 400 }
         );

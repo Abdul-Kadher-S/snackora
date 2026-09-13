@@ -180,8 +180,9 @@ export function Navbar() {
             {/* Customer Account / Login Button */}
             {isCustomerLoggedIn && customer ? (
               <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl px-2 py-1 sm:px-2.5 sm:py-1.5">
-                <span className="text-[11px] sm:text-xs font-bold text-slate-800 truncate max-w-[80px] sm:max-w-[110px]">
-                  {customer.name?.split(' ')[0] || 'My Account'}
+                <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#FF6B00] shrink-0" />
+                <span className="hidden sm:inline text-xs font-bold text-slate-800 truncate max-w-[110px]">
+                  {customer.name?.split(' ')[0] || 'Account'}
                 </span>
                 <button
                   type="button"
@@ -196,7 +197,8 @@ export function Navbar() {
               <button
                 type="button"
                 onClick={() => setIsLoginModalOpen(true)}
-                className="px-2.5 py-1.5 sm:px-3 sm:py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl sm:rounded-2xl text-xs sm:text-sm flex items-center gap-1.5 transition cursor-pointer shrink-0"
+                className="px-2 py-1.5 sm:px-3 sm:py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl sm:rounded-2xl text-xs sm:text-sm flex items-center gap-1.5 transition cursor-pointer shrink-0"
+                title="Customer Login"
               >
                 <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#FF6B00]" />
                 <span className="hidden sm:inline">Login</span>

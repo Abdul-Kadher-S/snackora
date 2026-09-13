@@ -119,6 +119,10 @@ export function CartDrawer() {
       });
       const data = await res.json();
       if (res.ok && data.valid) {
+        if (selectedCoupon) {
+          setSelectedCoupon(null);
+          showToast('Replaced SnackPoints coupon. Only 1 coupon discount can be redeemed per order.', 'info');
+        }
         setAppliedPromo(data);
         showToast(`🎉 Coupon ${data.code} applied! Saved ₹${data.discountAmount}`, 'success');
         setPromoInput('');
@@ -270,6 +274,7 @@ export function CartDrawer() {
                   <div className="flex items-center gap-1.5">
                     <Ticket className="w-4 h-4 text-[#FF6B00]" />
                     <span className="text-xs font-black text-slate-800">Have a coupon code?</span>
+                    <span className="text-[10px] text-slate-400 font-semibold">(1 per order)</span>
                   </div>
                   {appliedPromo && (
                     <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
@@ -402,7 +407,17 @@ export function CartDrawer() {
                         <button
                           key={c.id}
                           type="button"
-                          onClick={() => setSelectedCoupon(isSelected ? null : c)}
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedCoupon(null);
+                            } else {
+                              if (appliedPromo) {
+                                setAppliedPromo(null);
+                                showToast('Replaced promo code. Only 1 coupon discount can be redeemed per order.', 'info');
+                              }
+                              setSelectedCoupon(c);
+                            }
+                          }}
                           className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold transition flex items-center justify-between ${
                             isSelected
                               ? 'bg-white border-2 border-[#FF6B00] text-[#FF6B00] shadow-xs'

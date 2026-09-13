@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse, after } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/prisma';
-import { getAdminSession } from '@/lib/auth';
 import { broadcastOrderEvent, broadcastProductEvent } from '@/lib/supabase';
 import { sendTelegramOrderNotification } from '@/lib/telegram';
 import { hashCustomerPin, verifyCustomerPin, signCustomerToken, CUSTOMER_COOKIE_NAME } from '@/lib/customer-auth';
@@ -58,81 +57,27 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Generate unique 7-digit order number DDMMNNN (e.g., 1009001) reset daily in IST
-async function generateUniqueOrderNumber(): Promise<string> {
-  // Compute current date in Indian Standard Time (UTC + 5:30)
-  const now = new Date();
-  const istDate = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
-  const dd = String(istDate.getUTCDate()).padStart(2, '0');
-  const mm = String(istDate.getUTCMonth() + 1).padStart(2, '0');
-  const prefix = `${dd}${mm}`; // e.g. "1009"
-
-  try {
-    // Find highest order number for today
-    const latestOrderToday = await prisma.order.findFirst({
-      where: {
-        orderNumber: {
-          startsWith: prefix,
-        },
-      },
-      select: {
-        orderNumber: true,
-      },
-      orderBy: {
-        orderNumber: 'desc',
-      },
-    });
-
-    let maxSequence = 0;
-    if (latestOrderToday?.orderNumber && latestOrderToday.orderNumber.length === 7 && latestOrderToday.orderNumber.startsWith(prefix)) {
-      const seqPart = parseInt(latestOrderToday.orderNumber.slice(4), 10);
-      if (!isNaN(seqPart) && seqPart > 0) {
-        maxSequence = seqPart;
-      }
-    }
-
-    const nextSeq = maxSequence + 1;
-    const candidate = `${prefix}${String(nextSeq).padStart(3, '0')}`;
-
-    // Verify non-collision
-    const exists = await prisma.order.findUnique({
-      where: { orderNumber: candidate },
-      select: { id: true },
-    });
-
-    if (!exists) {
-      return candidate;
-    }
-
-    // If candidate exists due to concurrency, find the next available sequence
-    for (let offset = 1; offset <= 200; offset++) {
-      const altNum = `${prefix}${String(nextSeq + offset).padStart(3, '0')}`;
-      const altExists = await prisma.order.findUnique({
-        where: { orderNumber: altNum },
-        select: { id: true },
-      });
-      if (!altExists) return altNum;
-    }
-  } catch (err) {
-    console.error('Error calculating daily order sequence:', err);
-  }
-
-  // Fallback 7-digit ID: prefix + 3 random digits
-  const fallbackSeq = Math.floor(100 + Math.random() * 900);
-  return `${prefix}${fallbackSeq}`;
-}
-
 export async function POST(request: NextRequest) {
-  await ensureDbColumns();
+  // Run column check non-blocking in background so it never slows down checkout
+  ensureDbColumns().catch(() => {});
+
   try {
     const body = await request.json();
     const { customerName, phone, hostel, roomNumber, deliveryNote, items, couponId, couponCode, pin, confirmPin } = body;
+
+    // === STRICT MUTUAL EXCLUSIVITY ===
+    // A customer cannot redeem both a SnackPoints coupon and an admin promo code on the same order
+    if (couponId && couponCode) {
+      return NextResponse.json(
+        { error: 'Only 1 coupon discount can be redeemed per order. Choose either a SnackPoints coupon or a promo code, not both.' },
+        { status: 400 }
+      );
+    }
 
     // === NAME VALIDATION ===
     if (!customerName || typeof customerName !== 'string' || customerName.trim().length < 2) {
       return NextResponse.json({ error: 'Please provide your full name.' }, { status: 400 });
     }
-    // Name must contain only letters and spaces
     const nameRegex = /^[A-Za-z\s]+$/;
     if (!nameRegex.test(customerName.trim())) {
       return NextResponse.json({ error: 'Please enter your name using letters only. Numbers and special characters are not allowed.' }, { status: 400 });
@@ -143,7 +88,6 @@ export async function POST(request: NextRequest) {
     if (cleanPhone.length !== 10) {
       return NextResponse.json({ error: 'Please enter a valid 10-digit mobile number using numbers only.' }, { status: 400 });
     }
-    // Must start with 6-9 (Indian mobile)
     if (!/^[6-9]/.test(cleanPhone)) {
       return NextResponse.json({ error: 'Please enter a valid Indian mobile number.' }, { status: 400 });
     }
@@ -153,7 +97,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Please select your hostel block.' }, { status: 400 });
     }
 
-    // === HOSTEL DELIVERY AVAILABILITY KEY ===
     const hostelName = hostel.split(' — ')[0].trim();
     const deliverySettingKeys: Record<string, string> = {
       'Annex': 'annex_delivery_enabled',
@@ -177,17 +120,49 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Your cart is empty. Please add snacks to place an order.' }, { status: 400 });
     }
 
-    // === BATCH FETCH PRODUCTS & SETTINGS IN PARALLEL ===
+    // Compute Indian Standard Time date prefix for 7-digit order number
+    const now = new Date();
+    const istDate = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
+    const dd = String(istDate.getUTCDate()).padStart(2, '0');
+    const mm = String(istDate.getUTCMonth() + 1).padStart(2, '0');
+    const prefix = `${dd}${mm}`;
+
+    // === BATCH ALL PRE-CHECK QUERIES IN A SINGLE PARALLEL ROUNDTRIP ===
     const productIds = items.map((i: any) => i.productId);
     const neededSettings = [settingKey, 'delivery_charge', 'free_delivery_threshold'];
+    const normalizedPromoCode = couponCode && typeof couponCode === 'string' && couponCode.trim()
+      ? couponCode.trim().toUpperCase()
+      : null;
 
-    const [dbProducts, settingsList] = await Promise.all([
-      prisma.product.findMany({
-        where: { id: { in: productIds } },
+    const [
+      dbProducts,
+      settingsList,
+      prefetchedCustomer,
+      latestOrderToday,
+      prefetchedCoupon,
+      prefetchedOffer,
+      pastUsedPromoOrder,
+    ] = await Promise.all([
+      prisma.product.findMany({ where: { id: { in: productIds } } }),
+      prisma.storeSetting.findMany({ where: { key: { in: neededSettings } } }),
+      prisma.customer.findUnique({ where: { phone: cleanPhone } }),
+      prisma.order.findFirst({
+        where: { orderNumber: { startsWith: prefix } },
+        select: { orderNumber: true },
+        orderBy: { orderNumber: 'desc' },
       }),
-      prisma.storeSetting.findMany({
-        where: { key: { in: neededSettings } },
-      }),
+      couponId ? prisma.coupon.findUnique({ where: { id: couponId } }) : Promise.resolve(null),
+      normalizedPromoCode ? prisma.offer.findUnique({ where: { code: normalizedPromoCode } }) : Promise.resolve(null),
+      normalizedPromoCode
+        ? prisma.order.findFirst({
+            where: {
+              phone: cleanPhone,
+              couponCode: normalizedPromoCode,
+              status: { not: 'CANCELLED' },
+            },
+            select: { id: true, orderNumber: true },
+          })
+        : Promise.resolve(null),
     ]);
 
     const settingsMap = new Map(settingsList.map((s) => [s.key, s.value]));
@@ -243,7 +218,6 @@ export async function POST(request: NextRequest) {
       const itemSubtotal = product.price * qty;
       calculatedSubtotal += itemSubtotal;
 
-      // Track SnackPoints-eligible spend
       if (product.earnSnackpoints) {
         snackpointsEligibleAmount += itemSubtotal;
       }
@@ -260,11 +234,9 @@ export async function POST(request: NextRequest) {
     // === DELIVERY FEE CALCULATION ===
     const deliveryChargeVal = settingsMap.get('delivery_charge');
     const freeThresholdVal = settingsMap.get('free_delivery_threshold');
-
     const deliveryChargeAmount = deliveryChargeVal ? parseFloat(deliveryChargeVal) : 20;
     const freeThreshold = freeThresholdVal ? parseFloat(freeThresholdVal) : 200;
 
-    // Free delivery based on subtotal BEFORE coupon
     const freeDeliveryApplied = calculatedSubtotal >= freeThreshold;
     const deliveryFee = freeDeliveryApplied ? 0 : deliveryChargeAmount;
 
@@ -276,88 +248,84 @@ export async function POST(request: NextRequest) {
 
     // 1. User-specific SnackPoints Coupon
     if (couponId) {
-      const coupon = await prisma.coupon.findUnique({
-        where: { id: couponId },
-      });
-
-      if (!coupon) {
+      if (!prefetchedCoupon) {
         return NextResponse.json({ error: 'Invalid coupon.' }, { status: 400 });
       }
 
-      // Check ownership by phone
-      const couponCustomer = await prisma.customer.findUnique({
-        where: { id: coupon.customerId },
-      });
-      if (!couponCustomer || couponCustomer.phone !== cleanPhone) {
+      if (prefetchedCustomer && prefetchedCoupon.customerId !== prefetchedCustomer.id) {
         return NextResponse.json({ error: 'This coupon does not belong to your account.' }, { status: 400 });
       }
 
-      if (coupon.status !== 'AVAILABLE') {
+      if (prefetchedCoupon.status !== 'AVAILABLE') {
         return NextResponse.json({ error: 'This coupon has already been used or has expired.' }, { status: 400 });
       }
 
-      if (new Date(coupon.expiresAt) < new Date()) {
-        // Mark as expired
-        await prisma.coupon.update({ where: { id: coupon.id }, data: { status: 'EXPIRED' } });
+      if (new Date(prefetchedCoupon.expiresAt) < new Date()) {
+        await prisma.coupon.update({ where: { id: prefetchedCoupon.id }, data: { status: 'EXPIRED' } });
         return NextResponse.json({ error: 'This coupon has expired.' }, { status: 400 });
       }
 
-      if (coupon.value > 20) {
+      if (prefetchedCoupon.value > 20) {
         return NextResponse.json({ error: 'Maximum coupon discount is ₹20 per order.' }, { status: 400 });
       }
 
-      userCouponDiscount = Math.min(coupon.value, calculatedSubtotal);
-      validatedCouponId = coupon.id;
+      userCouponDiscount = Math.min(prefetchedCoupon.value, calculatedSubtotal);
+      validatedCouponId = prefetchedCoupon.id;
     }
 
-    // 2. Admin-Created Promo Code (Offer table) - STRICT ONE-TIME PER CUSTOMER
-    if (couponCode && typeof couponCode === 'string' && couponCode.trim()) {
-      const normalizedCode = couponCode.trim().toUpperCase();
-      const offer = await prisma.offer.findUnique({
-        where: { code: normalizedCode },
-      });
-
-      if (!offer) {
-        return NextResponse.json({ error: `Coupon code "${normalizedCode}" is invalid.` }, { status: 400 });
+    // 2. Admin-Created Promo Code (Offer table) - STRICT ONE-TIME PER CUSTOMER & EXPIRY
+    if (normalizedPromoCode) {
+      if (!prefetchedOffer) {
+        return NextResponse.json({ error: `Coupon code "${normalizedPromoCode}" is invalid.` }, { status: 400 });
       }
 
-      if (!offer.active) {
-        return NextResponse.json({ error: `Coupon code "${offer.code}" is no longer active.` }, { status: 400 });
-      }
-
-      if (offer.minOrderValue > 0 && calculatedSubtotal < offer.minOrderValue) {
+      if (prefetchedOffer.validUntil && new Date(prefetchedOffer.validUntil) < new Date()) {
+        const expiryFormatted = new Date(prefetchedOffer.validUntil).toLocaleString('en-IN', {
+          timeZone: 'Asia/Kolkata',
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        });
         return NextResponse.json(
-          { error: `Minimum order value of ₹${offer.minOrderValue} required for coupon ${offer.code}.` },
+          { error: `Coupon code "${prefetchedOffer.code}" expired on ${expiryFormatted}.` },
           { status: 400 }
         );
       }
 
-      // Enforce one-time per customer: check past non-cancelled orders by this phone
-      const pastUsedOrder = await prisma.order.findFirst({
-        where: {
-          phone: cleanPhone,
-          couponCode: offer.code,
-          status: { not: 'CANCELLED' },
-        },
-      });
+      if (!prefetchedOffer.active) {
+        return NextResponse.json({ error: `Coupon code "${prefetchedOffer.code}" is currently deactivated.` }, { status: 400 });
+      }
 
-      if (pastUsedOrder) {
+      if (prefetchedOffer.minOrderValue > 0 && calculatedSubtotal < prefetchedOffer.minOrderValue) {
+        const deficit = Math.ceil(prefetchedOffer.minOrderValue - calculatedSubtotal);
         return NextResponse.json(
           {
-            error: `Coupon code ${offer.code} has already been used on your account (${pastUsedOrder.orderNumber}). Admin promo codes can only be used once per customer.`,
+            error: `Minimum order value of ₹${prefetchedOffer.minOrderValue} required for coupon ${prefetchedOffer.code}. Add snacks worth ₹${deficit} more to redeem.`,
           },
           { status: 400 }
         );
       }
 
-      // Recalculate discount strictly on server
-      if (offer.discountType === 'PERCENTAGE') {
-        promoDiscount = Math.round((calculatedSubtotal * offer.discountValue) / 100);
+      // Check one-time per customer
+      if (pastUsedPromoOrder) {
+        return NextResponse.json(
+          {
+            error: `Coupon code ${prefetchedOffer.code} has already been used on your account (Order #${pastUsedPromoOrder.orderNumber}). Coupons can only be used once per customer.`,
+          },
+          { status: 400 }
+        );
+      }
+
+      if (prefetchedOffer.discountType === 'PERCENTAGE') {
+        promoDiscount = Math.round((calculatedSubtotal * prefetchedOffer.discountValue) / 100);
       } else {
-        promoDiscount = offer.discountValue;
+        promoDiscount = prefetchedOffer.discountValue;
       }
       promoDiscount = Math.min(promoDiscount, calculatedSubtotal);
-      validatedCouponCode = offer.code;
+      validatedCouponCode = prefetchedOffer.code;
     }
 
     const totalCouponDiscount = Math.min(calculatedSubtotal, userCouponDiscount + promoDiscount);
@@ -365,24 +333,67 @@ export async function POST(request: NextRequest) {
     const snackpointsEligibleAmountAfterPromo = Math.max(0, snackpointsEligibleAmount - totalCouponDiscount);
     const snackpointsEarned = Math.floor(snackpointsEligibleAmountAfterPromo);
 
-    // === GENERATE UNIQUE ORDER NUMBER ===
-    const orderNumber = await generateUniqueOrderNumber();
+    // === GENERATE ORDER NUMBER IN-MEMORY FROM PREFETCHED TODAY HIGHEST ===
+    let maxSequence = 0;
+    if (
+      latestOrderToday?.orderNumber &&
+      latestOrderToday.orderNumber.length === 7 &&
+      latestOrderToday.orderNumber.startsWith(prefix)
+    ) {
+      const seqPart = parseInt(latestOrderToday.orderNumber.slice(4), 10);
+      if (!isNaN(seqPart) && seqPart > 0) {
+        maxSequence = seqPart;
+      }
+    }
+    const orderNumber = `${prefix}${String(maxSequence + 1).padStart(3, '0')}`;
 
-    // === EXECUTE ORDER (ATOMIC TRANSACTION) ===
-    const createdOrder = await prisma.$transaction(async (tx) => {
-      // 1. Decrement stock atomically
-      for (const item of validatedItems) {
-        const updated = await tx.product.update({
-          where: { id: item.productId },
-          data: {
-            stock: {
-              decrement: item.quantity,
-            },
-          },
-        });
-        // Final stock check after decrement
-        if (updated.stock < 0) {
-          throw new Error(`Sorry, "${item.productName}" just went out of stock. Please update your cart.`);
+    // === PRE-VERIFY / PRE-HASH PIN OUTSIDE TRANSACTION (AVOID DB TRANSACTION DELAY) ===
+    let assignedPinHash: string | undefined;
+    if (!prefetchedCustomer) {
+      // First-time customer: must create 4-digit PIN
+      if (!pin || typeof pin !== 'string' || !/^\d{4}$/.test(pin.trim())) {
+        return NextResponse.json({ error: 'Please create a 4-digit PIN for your account.' }, { status: 400 });
+      }
+      if (pin.trim() !== (confirmPin || '').trim()) {
+        return NextResponse.json({ error: 'PIN confirmation does not match. Please re-enter.' }, { status: 400 });
+      }
+      assignedPinHash = await hashCustomerPin(pin);
+    } else if (prefetchedCustomer.pinHash) {
+      // Returning customer with existing PIN
+      if (!pin || typeof pin !== 'string' || !/^\d{4}$/.test(pin.trim())) {
+        return NextResponse.json({ error: 'Please enter your 4-digit PIN to confirm your order.' }, { status: 400 });
+      }
+      const isPinValid = await verifyCustomerPin(pin, prefetchedCustomer.pinHash);
+      if (!isPinValid) {
+        return NextResponse.json({ error: 'Incorrect 4-digit PIN. Please enter your correct PIN.' }, { status: 400 });
+      }
+    } else {
+      // Legacy customer setting up PIN for first time
+      if (!pin || typeof pin !== 'string' || !/^\d{4}$/.test(pin.trim())) {
+        return NextResponse.json({ error: 'Please create a 4-digit PIN for your account.' }, { status: 400 });
+      }
+      if (pin.trim() !== (confirmPin || '').trim()) {
+        return NextResponse.json({ error: 'PIN confirmation does not match. Please re-enter.' }, { status: 400 });
+      }
+      assignedPinHash = await hashCustomerPin(pin);
+    }
+
+    // === EXECUTE ORDER (HIGH-SPEED ATOMIC TRANSACTION) ===
+    const createdResult = await prisma.$transaction(async (tx) => {
+      // 1. Decrement stock concurrently
+      const stockUpdates = await Promise.all(
+        validatedItems.map((item) =>
+          tx.product.update({
+            where: { id: item.productId },
+            data: { stock: { decrement: item.quantity } },
+          })
+        )
+      );
+
+      // Verify no item went below 0
+      for (let idx = 0; idx < stockUpdates.length; idx++) {
+        if (stockUpdates[idx].stock < 0) {
+          throw new Error(`Sorry, "${validatedItems[idx].productName}" just went out of stock. Please update your cart.`);
         }
       }
 
@@ -415,32 +426,10 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // 3. Mark coupon as used
-      if (validatedCouponId) {
-        await tx.coupon.update({
-          where: { id: validatedCouponId },
-          data: {
-            status: 'USED',
-            usedAt: new Date(),
-            usedOrderId: newOrder.id,
-          },
-        });
-      }
-
-      // 4. Customer Authentication & Creation / Update
-      let customer = await tx.customer.findUnique({ where: { phone: cleanPhone } });
-      let assignedPinHash: string | undefined;
-
-      if (!customer) {
-        // First-time customer: must create 4-digit PIN
-        if (!pin || typeof pin !== 'string' || !/^\d{4}$/.test(pin.trim())) {
-          throw new Error('Please create a 4-digit PIN for your account.');
-        }
-        if (pin.trim() !== (confirmPin || '').trim()) {
-          throw new Error('PIN confirmation does not match. Please re-enter.');
-        }
-        assignedPinHash = await hashCustomerPin(pin);
-        customer = await tx.customer.create({
+      // 3. Upsert Customer Record
+      let customerRecord: any;
+      if (!prefetchedCustomer) {
+        customerRecord = await tx.customer.create({
           data: {
             phone: cleanPhone,
             name: customerName.trim(),
@@ -450,27 +439,7 @@ export async function POST(request: NextRequest) {
           },
         });
       } else {
-        // Returning customer
-        if (customer.pinHash) {
-          if (!pin || typeof pin !== 'string' || !/^\d{4}$/.test(pin.trim())) {
-            throw new Error('Please enter your 4-digit PIN to confirm your order.');
-          }
-          const isPinValid = await verifyCustomerPin(pin, customer.pinHash);
-          if (!isPinValid) {
-            throw new Error('Incorrect 4-digit PIN. Please enter your correct PIN.');
-          }
-        } else {
-          // Existing customer without PIN yet: set up PIN
-          if (!pin || typeof pin !== 'string' || !/^\d{4}$/.test(pin.trim())) {
-            throw new Error('Please create a 4-digit PIN for your account.');
-          }
-          if (pin.trim() !== (confirmPin || '').trim()) {
-            throw new Error('PIN confirmation does not match. Please re-enter.');
-          }
-          assignedPinHash = await hashCustomerPin(pin);
-        }
-
-        customer = await tx.customer.update({
+        customerRecord = await tx.customer.update({
           where: { phone: cleanPhone },
           data: {
             name: customerName.trim(),
@@ -481,44 +450,60 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // 5. Create pending SnackPoints transaction (credited on delivery)
-      if (snackpointsEarned > 0) {
-        await tx.snackpointTransaction.create({
-          data: {
-            customerId: customer.id,
-            orderId: newOrder.id,
-            points: snackpointsEarned,
-            type: 'PENDING_EARN',
-            status: 'PENDING',
-            description: `Pending points for order #${orderNumber}`,
-          },
-        });
+      // 4. Parallelize post-creation DB tasks
+      const subTasks: Promise<any>[] = [];
 
-        // Update pending balance
-        await tx.customer.update({
-          where: { id: customer.id },
-          data: {
-            pendingSnackpoints: { increment: snackpointsEarned },
-          },
-        });
+      if (validatedCouponId) {
+        subTasks.push(
+          tx.coupon.update({
+            where: { id: validatedCouponId },
+            data: {
+              status: 'USED',
+              usedAt: new Date(),
+              usedOrderId: newOrder.id,
+            },
+          })
+        );
       }
 
-      // 6. Create order notification
-      await tx.notification.create({
-        data: {
-          customerId: customer.id,
-          title: '🎉 Order Placed!',
-          message: `Your order #${orderNumber} has been placed successfully. Total: ₹${calculatedTotal}. Payment: Cash on Delivery.`,
-          type: 'ORDER',
-        },
-      });
+      if (snackpointsEarned > 0) {
+        subTasks.push(
+          tx.snackpointTransaction.create({
+            data: {
+              customerId: customerRecord.id,
+              orderId: newOrder.id,
+              points: snackpointsEarned,
+              type: 'PENDING_EARN',
+              status: 'PENDING',
+              description: `Pending points for order #${orderNumber}`,
+            },
+          }),
+          tx.customer.update({
+            where: { id: customerRecord.id },
+            data: { pendingSnackpoints: { increment: snackpointsEarned } },
+          })
+        );
+      }
 
-      return newOrder;
+      subTasks.push(
+        tx.notification.create({
+          data: {
+            customerId: customerRecord.id,
+            title: '🎉 Order Placed!',
+            message: `Your order #${orderNumber} has been placed successfully. Total: ₹${calculatedTotal}. Payment: Cash on Delivery.`,
+            type: 'ORDER',
+          },
+        })
+      );
+
+      await Promise.all(subTasks);
+
+      return { order: newOrder, customerId: customerRecord.id };
     });
 
-    // Realtime broadcast and Telegram Bot Notification dispatched via Next.js after()
-    // This allows the student's checkout to complete instantaneously (< 500ms)
-    // while external network notifications proceed safely in the background.
+    const { order: createdOrder, customerId } = createdResult;
+
+    // Dispatched via Next.js after() to keep student response latency minimal (< 300ms)
     after(async () => {
       try {
         await broadcastOrderEvent('ORDER_CREATED', createdOrder);
@@ -530,6 +515,7 @@ export async function POST(request: NextRequest) {
         revalidatePath('/', 'layout');
         revalidatePath('/');
         revalidatePath('/search');
+        revalidatePath('/orders');
       } catch {}
 
       for (const item of createdOrder.items) {
@@ -549,7 +535,7 @@ export async function POST(request: NextRequest) {
           hostel: createdOrder.hostel,
           roomNumber: createdOrder.roomNumber,
           deliveryNote: createdOrder.deliveryNote,
-          items: createdOrder.items.map((i) => ({
+          items: createdOrder.items.map((i: any) => ({
             productName: i.productName,
             quantity: i.quantity,
             price: i.price,
@@ -568,18 +554,17 @@ export async function POST(request: NextRequest) {
     });
 
     const response = NextResponse.json(createdOrder, { status: 201 });
+
+    // Issue customer session cookie directly using customerId from transaction
     try {
-      const customer = await prisma.customer.findUnique({ where: { phone: cleanPhone } });
-      if (customer) {
-        const token = await signCustomerToken({ customerId: customer.id, phone: cleanPhone });
-        response.cookies.set(CUSTOMER_COOKIE_NAME, token, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
-          path: '/',
-          maxAge: 30 * 24 * 60 * 60,
-        });
-      }
+      const token = await signCustomerToken({ customerId, phone: cleanPhone });
+      response.cookies.set(CUSTOMER_COOKIE_NAME, token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 30 * 24 * 60 * 60,
+      });
     } catch (tokenErr) {
       console.error('Error signing customer token:', tokenErr);
     }

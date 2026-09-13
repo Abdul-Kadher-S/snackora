@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { code, title, description, discountType, discountValue, minOrderValue, active } = body;
+    const { code, title, description, discountType, discountValue, minOrderValue, active, validUntil } = body;
 
     if (!code || !title) {
       return NextResponse.json({ error: 'Coupon code and title are required.' }, { status: 400 });
@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
         discountValue: parseFloat(discountValue) || 10,
         minOrderValue: parseFloat(minOrderValue) || 0,
         active: active !== undefined ? Boolean(active) : true,
+        validUntil: validUntil ? new Date(validUntil) : null,
       },
     });
 
