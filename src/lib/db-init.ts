@@ -11,6 +11,9 @@ export async function ensureDbColumns() {
     await prisma.$executeRawUnsafe(`ALTER TABLE "Offer" ADD COLUMN IF NOT EXISTS "validFrom" TIMESTAMP WITH TIME ZONE;`);
     await prisma.$executeRawUnsafe(`ALTER TABLE "Offer" ADD COLUMN IF NOT EXISTS "dailyStartTime" TEXT;`);
     await prisma.$executeRawUnsafe(`ALTER TABLE "Offer" ADD COLUMN IF NOT EXISTS "dailyEndTime" TEXT;`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "Offer" ADD COLUMN IF NOT EXISTS "daysOfWeek" TEXT;`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "Offer" ADD COLUMN IF NOT EXISTS "oncePerCustomer" BOOLEAN DEFAULT TRUE;`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "comboItems" TEXT;`);
     initialized = true;
   } catch (err) {
     console.error('Failed to run schema column migration:', err);

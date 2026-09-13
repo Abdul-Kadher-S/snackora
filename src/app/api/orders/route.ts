@@ -308,11 +308,11 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Check one-time per customer
-      if (pastUsedPromoOrder) {
+      // Check one-time per customer (only if oncePerCustomer is true for this offer)
+      if (prefetchedOffer.oncePerCustomer !== false && pastUsedPromoOrder) {
         return NextResponse.json(
           {
-            error: `Coupon code ${prefetchedOffer.code} has already been used on your account (Order #${pastUsedPromoOrder.orderNumber}). Coupons can only be used once per customer.`,
+            error: `Coupon code ${prefetchedOffer.code} has already been used on your account (Order #${pastUsedPromoOrder.orderNumber}). This coupon is limited to 1 use per customer.`,
           },
           { status: 400 }
         );

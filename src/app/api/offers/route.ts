@@ -39,6 +39,8 @@ export async function POST(request: NextRequest) {
       validUntil,
       dailyStartTime,
       dailyEndTime,
+      daysOfWeek,
+      oncePerCustomer,
     } = body;
 
     if (!code || !title) {
@@ -58,6 +60,8 @@ export async function POST(request: NextRequest) {
         validUntil: validUntil ? new Date(validUntil) : null,
         dailyStartTime: dailyStartTime?.trim() || null,
         dailyEndTime: dailyEndTime?.trim() || null,
+        daysOfWeek: daysOfWeek?.trim() || null,
+        oncePerCustomer: oncePerCustomer !== undefined ? Boolean(oncePerCustomer) : true,
       },
     });
 

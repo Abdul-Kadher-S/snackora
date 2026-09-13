@@ -70,6 +70,7 @@ export async function PUT(
       earnSnackpoints,
       isTrending,
       isHalfPrice,
+      comboItems,
     } = body;
 
     // Validate price if updated
@@ -101,6 +102,7 @@ export async function PUT(
         ...(earnSnackpoints !== undefined && { earnSnackpoints: Boolean(earnSnackpoints) }),
         ...(isTrending !== undefined && { isTrending: Boolean(isTrending) }),
         ...(isHalfPrice !== undefined && { isHalfPrice: Boolean(isHalfPrice) }),
+        ...(comboItems !== undefined && { comboItems: comboItems ? (typeof comboItems === 'string' ? comboItems : JSON.stringify(comboItems)) : null }),
       },
       include: {
         category: true,

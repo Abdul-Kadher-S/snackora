@@ -11,7 +11,8 @@ import { HeroBanner } from '@/components/home/HeroBanner';
 import { CategoryCarousel } from '@/components/home/CategoryCarousel';
 import { CuratedProductRow } from '@/components/home/CuratedProductRow';
 import { ProductDetailModal } from '@/components/products/ProductDetailModal';
-import { Sparkles, Flame, Moon, Coins, Heart, Globe, Coffee, Package } from 'lucide-react';
+import { ComboCard } from '@/components/combos/ComboCard';
+import { Sparkles, Flame, Moon, Coins, Heart, Globe, Coffee, Package, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 
 interface HomeClientProps {
@@ -84,9 +85,9 @@ export function HomeClient({ categories, products }: HomeClientProps) {
     .filter((p) => p.price <= 50)
     .slice(0, 4);
 
-  const studentCombos = productList
-    .filter((p) => p.category?.slug === 'combos' || p.tags.includes('combo'))
-    .slice(0, 4);
+  const studentCombos = productList.filter(
+    (p) => Boolean(p.comboItems) || p.category?.slug === 'combos' || p.category?.slug === 'midnight-combos' || p.tags.includes('combo')
+  );
 
   const sweetTooth = productList
     .filter(
@@ -119,6 +120,46 @@ export function HomeClient({ categories, products }: HomeClientProps) {
 
         {/* Categories Bar */}
         <CategoryCarousel categories={categories} />
+
+        {/* 🔥 Special Mega Combo Offers Section (2+ products) */}
+        {studentCombos.length > 0 && (
+          <section className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 w-full">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 mb-5">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xl sm:text-2xl">🔥</span>
+                  <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                    Mega Combo Offers
+                  </h2>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-orange-100 text-orange-700 border border-orange-200 uppercase tracking-wider">
+                    SAVE BIG
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                  Bundled snack packs with 2, 3, or 4 items at discounted hostel rates
+                </p>
+              </div>
+
+              <Link
+                href="/search?category=combos"
+                className="text-xs sm:text-sm font-bold text-[#FF6B00] hover:text-[#EA580C] transition flex items-center gap-1 shrink-0"
+              >
+                <span>View All Combos</span>
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {studentCombos.slice(0, 6).map((combo) => (
+                <ComboCard
+                  key={combo.id}
+                  product={combo}
+                  onOpenDetails={(p) => setSelectedProduct(p)}
+                />
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* 1. Popular Near You */}
         <CuratedProductRow

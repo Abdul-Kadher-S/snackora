@@ -21,6 +21,7 @@ import {
   Truck,
   Cookie,
   Send,
+  Flame,
 } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 
@@ -31,6 +32,7 @@ interface AdminLayoutClientProps {
 const NAV_ITEMS = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { href: '/admin/products', label: 'Products', icon: Package },
+  { href: '/admin/combos', label: 'Combo Offers 🔥', icon: Flame },
   { href: '/admin/categories', label: 'Categories', icon: Layers },
   { href: '/admin/orders', label: 'Orders', icon: ShoppingBag },
   { href: '/admin/inventory', label: 'Inventory', icon: ClipboardList },

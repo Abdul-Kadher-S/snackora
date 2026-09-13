@@ -51,8 +51,15 @@ export interface Product {
   isTrending: boolean;
   isHalfPrice: boolean;
   earnSnackpoints: boolean;
+  comboItems?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ComboItem {
+  name: string;
+  imageUrl: string;
+  quantity?: number;
 }
 
 export interface CartItem {
@@ -185,6 +192,8 @@ export interface Offer {
   validUntil?: string | null;
   dailyStartTime?: string | null;
   dailyEndTime?: string | null;
+  daysOfWeek?: string | null;
+  oncePerCustomer?: boolean;
   createdAt: string;
 }
 

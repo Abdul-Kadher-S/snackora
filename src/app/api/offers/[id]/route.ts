@@ -73,6 +73,12 @@ export async function PATCH(
     if (body.dailyEndTime !== undefined) {
       updateData.dailyEndTime = body.dailyEndTime ? String(body.dailyEndTime).trim() : null;
     }
+    if (body.daysOfWeek !== undefined) {
+      updateData.daysOfWeek = body.daysOfWeek ? String(body.daysOfWeek).trim() : null;
+    }
+    if (body.oncePerCustomer !== undefined) {
+      updateData.oncePerCustomer = Boolean(body.oncePerCustomer);
+    }
 
     const updated = await prisma.offer.update({
       where: { id },

@@ -159,6 +159,7 @@ export async function POST(request: NextRequest) {
       isTrending,
       isHalfPrice,
       earnSnackpoints,
+      comboItems,
     } = body;
 
     if (!name || typeof name !== 'string' || name.trim().length < 2) {
@@ -204,6 +205,7 @@ export async function POST(request: NextRequest) {
         isTrending: Boolean(isTrending),
         isHalfPrice: Boolean(isHalfPrice),
         earnSnackpoints: earnSnackpoints !== undefined ? Boolean(earnSnackpoints) : true,
+        comboItems: comboItems ? (typeof comboItems === 'string' ? comboItems : JSON.stringify(comboItems)) : null,
       },
       include: {
         category: true,

@@ -42,6 +42,7 @@ model Product {
   isTrending      Boolean     @default(false)
   isHalfPrice     Boolean     @default(false)
   earnSnackpoints Boolean     @default(true)
+  comboItems      String?     // JSON string for combo products: [{ name, imageUrl, quantity }]
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
   orderItems      OrderItem[]
@@ -125,6 +126,8 @@ model Offer {
   validUntil     DateTime?
   dailyStartTime String?
   dailyEndTime   String?
+  daysOfWeek     String?   // Comma-separated active days: SUN,MON,TUE,WED,THU,FRI,SAT
+  oncePerCustomer Boolean  @default(true) // Whether coupon is strictly 1-time per customer phone
   createdAt      DateTime  @default(now())
 }
 

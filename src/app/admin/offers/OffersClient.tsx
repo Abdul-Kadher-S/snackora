@@ -17,6 +17,17 @@ function formatTime12h(timeStr: string) {
   return `${hour12}:${minuteStr} ${ampm}`;
 }
 
+const ALL_DAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+const DAY_LABELS: Record<string, string> = {
+  SUN: 'Sun',
+  MON: 'Mon',
+  TUE: 'Tue',
+  WED: 'Wed',
+  THU: 'Thu',
+  FRI: 'Fri',
+  SAT: 'Sat',
+};
+
 export function OffersClient() {
   const [offers, setOffers] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,6 +43,8 @@ export function OffersClient() {
   const [validUntil, setValidUntil] = useState('');
   const [dailyStartTime, setDailyStartTime] = useState('00:00');
   const [dailyEndTime, setDailyEndTime] = useState('04:00');
+  const [selectedDays, setSelectedDays] = useState<string[]>(ALL_DAYS);
+  const [oncePerCustomer, setOncePerCustomer] = useState(true);
   const [saving, setSaving] = useState(false);
 
   // Deletion & toggle state
@@ -83,6 +96,8 @@ export function OffersClient() {
         validUntil: null,
         dailyStartTime: null,
         dailyEndTime: null,
+        daysOfWeek: selectedDays.length === 7 ? null : selectedDays.join(','),
+        oncePerCustomer,
       };
 
       if (timingType === 'DATE_RANGE') {
@@ -113,6 +128,8 @@ export function OffersClient() {
         setValidUntil('');
         setDailyStartTime('00:00');
         setDailyEndTime('04:00');
+        setSelectedDays(ALL_DAYS);
+        setOncePerCustomer(true);
         fetchOffers();
       } else {
         const err = await res.json();
@@ -248,16 +265,27 @@ export function OffersClient() {
                       <Ticket className="w-3.5 h-3.5" />
                       <span>{offer.code}</span>
                     </div>
-                    {offer.active ? (
-                      <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/80 px-2.5 py-0.5 rounded-full border border-emerald-800/80 flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                        ACTIVE
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-bold text-slate-400 bg-slate-900/90 px-2.5 py-0.5 rounded-full border border-slate-700">
-                        DEACTIVATED
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      {offer.oncePerCustomer === false ? (
+                        <span className="text-[10px] font-bold text-purple-300 bg-purple-950/80 px-2 py-0.5 rounded-full border border-purple-800/80">
+                          Multi-Use
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-sky-300 bg-sky-950/80 px-2 py-0.5 rounded-full border border-sky-800/80">
+                          1x Use
+                        </span>
+                      )}
+                      {offer.active ? (
+                        <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/80 px-2.5 py-0.5 rounded-full border border-emerald-800/80 flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                          ACTIVE
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-slate-400 bg-slate-900/90 px-2.5 py-0.5 rounded-full border border-slate-700">
+                          DEACTIVATED
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <h3 className="font-bold text-white text-base mb-1">{offer.title}</h3>
@@ -278,6 +306,12 @@ export function OffersClient() {
 
                   {/* Expiry & timing display */}
                   <div className="text-[11px] text-slate-400 flex flex-col gap-1 bg-slate-900/60 px-2.5 py-2 rounded-xl border border-slate-800">
+                    {offer.daysOfWeek && (
+                      <div className="flex items-center gap-1.5 text-indigo-300 font-medium">
+                        <Calendar className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                        <span>Days: {offer.daysOfWeek.split(',').map((d: string) => DAY_LABELS[d] || d).join(', ')}</span>
+                      </div>
+                    )}
                     {offer.dailyStartTime && offer.dailyEndTime && (
                       <div className="flex items-center gap-1.5 text-amber-300 font-semibold">
                         <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
@@ -629,6 +663,92 @@ export function OffersClient() {
                     </div>
                   </div>
                 )}
+
+                {/* Active Days of Week */}
+                <div className="space-y-2 pt-2 border-t border-slate-700/60">
+                  <div className="flex items-center justify-between">
+                    <label className="block font-bold text-slate-300 uppercase text-[11px] flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Active Days of Week (12 AM to Next Day 12 AM) *</span>
+                    </label>
+                    <div className="flex items-center gap-1.5 text-[10px]">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDays(ALL_DAYS)}
+                        className="text-[#FF6B00] hover:underline font-bold"
+                      >
+                        All Days
+                      </button>
+                      <span className="text-slate-600">•</span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDays(['MON', 'TUE', 'WED', 'THU', 'FRI'])}
+                        className="text-slate-400 hover:text-white underline font-medium"
+                      >
+                        Weekdays
+                      </button>
+                      <span className="text-slate-600">•</span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDays(['SAT', 'SUN'])}
+                        className="text-slate-400 hover:text-white underline font-medium"
+                      >
+                        Weekends
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-7 gap-1.5 bg-slate-950/60 p-2 rounded-2xl border border-slate-800">
+                    {ALL_DAYS.map((day) => {
+                      const isSelected = selectedDays.includes(day);
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() => {
+                            if (isSelected) {
+                              if (selectedDays.length > 1) {
+                                setSelectedDays(selectedDays.filter((d) => d !== day));
+                              }
+                            } else {
+                              setSelectedDays([...selectedDays, day]);
+                            }
+                          }}
+                          className={`py-2 rounded-xl font-bold text-xs transition text-center ${
+                            isSelected
+                              ? 'bg-[#FF6B00] text-white shadow-md'
+                              : 'bg-slate-800/80 text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          {DAY_LABELS[day]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[10px] text-slate-400">
+                    Coupon is active from 12:00 AM midnight to 11:59 PM (next day 12 AM) on selected days.
+                  </p>
+                </div>
+
+                {/* Usage Limit: One-time per customer */}
+                <div className="pt-2 border-t border-slate-700/60">
+                  <label className="flex items-start gap-2.5 cursor-pointer bg-slate-950/60 p-3 rounded-2xl border border-slate-800 hover:border-slate-700 transition">
+                    <input
+                      type="checkbox"
+                      checked={oncePerCustomer}
+                      onChange={(e) => setOncePerCustomer(e.target.checked)}
+                      className="mt-0.5 rounded text-[#FF6B00] focus:ring-[#FF6B00] bg-slate-800 border-slate-700 w-4 h-4 cursor-pointer"
+                    />
+                    <div className="text-xs">
+                      <span className="font-bold text-slate-200 block">Strictly 1-Time per Customer</span>
+                      <span className="text-[11px] text-slate-400 block mt-0.5">
+                        {oncePerCustomer
+                          ? 'Each customer mobile number can only use this coupon code once.'
+                          : 'Unlimited uses: Customers can redeem this code on multiple orders.'}
+                      </span>
+                    </div>
+                  </label>
+                </div>
               </div>
 
               <div className="pt-3 border-t border-slate-800 flex justify-end gap-2">

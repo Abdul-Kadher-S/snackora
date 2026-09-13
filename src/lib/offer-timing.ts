@@ -4,10 +4,43 @@ export interface OfferTimingProps {
   validUntil?: Date | string | null;
   dailyStartTime?: string | null;
   dailyEndTime?: string | null;
+  daysOfWeek?: string | null;
 }
+
+const DAY_CODES = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+const DAY_NAMES: Record<string, string> = {
+  SUN: 'Sunday',
+  MON: 'Monday',
+  TUE: 'Tuesday',
+  WED: 'Wednesday',
+  THU: 'Thursday',
+  FRI: 'Friday',
+  SAT: 'Saturday',
+};
 
 export function checkOfferTiming(offer: OfferTimingProps): { valid: boolean; reason?: string } {
   const now = new Date();
+
+  // Current time in Indian Standard Time (UTC + 5:30)
+  const istNow = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
+  const currentDayCode = DAY_CODES[istNow.getUTCDay()];
+
+  // 1. Day of Week Check (e.g. SUN,MON) - Active from 12 AM to next day 12 AM on those days
+  if (offer.daysOfWeek && offer.daysOfWeek.trim()) {
+    const allowedDays = offer.daysOfWeek
+      .split(',')
+      .map((d) => d.trim().toUpperCase())
+      .filter(Boolean);
+
+    if (allowedDays.length > 0 && !allowedDays.includes(currentDayCode)) {
+      const allowedDayNames = allowedDays.map((d) => DAY_NAMES[d] || d).join(', ');
+      const todayName = DAY_NAMES[currentDayCode] || currentDayCode;
+      return {
+        valid: false,
+        reason: `Coupon "${offer.code}" is only active on ${allowedDayNames} (12:00 AM to 11:59 PM). Today is ${todayName}.`,
+      };
+    }
+  }
 
   // 1. Date Range: Start Date & Time
   if (offer.validFrom) {

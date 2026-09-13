@@ -58,8 +58,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 5. One-time per customer check
-    if (cleanPhone.length === 10) {
+    // 5. One-time per customer check (only if oncePerCustomer is enabled for this offer)
+    if (offer.oncePerCustomer !== false && cleanPhone.length === 10) {
       const pastUsedOrder = await prisma.order.findFirst({
         where: {
           phone: cleanPhone,

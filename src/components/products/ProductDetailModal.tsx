@@ -7,7 +7,7 @@ import { VegBadge } from '@/components/ui/VegBadge';
 import { StarRating } from '@/components/ui/StarRating';
 import { Currency } from '@/components/ui/Currency';
 import { useCart } from '@/context/CartContext';
-import { X, Plus, Minus, ShoppingBag, ShieldCheck, Zap, Globe, Sparkles } from 'lucide-react';
+import { X, Plus, Minus, ShoppingBag, ShieldCheck, Zap, Globe, Sparkles, Flame } from 'lucide-react';
 
 interface ProductDetailModalProps {
   product: Product | null;
@@ -113,6 +113,33 @@ export function ProductDetailModal({ product, onClose, onSelectRelated }: Produc
             <p className="text-sm text-slate-600 leading-relaxed mb-5 bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
               {product.description}
             </p>
+
+            {/* Combo Included Items Showcase */}
+            {product.comboItems && (
+              <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-3xl p-4 mb-5 shadow-xs">
+                <p className="text-xs font-black text-orange-950 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                  <Flame className="w-4 h-4 fill-orange-500 text-orange-500" />
+                  <span>Items Included in this Combo Deal:</span>
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  {(() => {
+                    try {
+                      const items: any[] = JSON.parse(product.comboItems);
+                      return items.map((item, idx) => (
+                        <div key={idx} className="bg-white p-2.5 rounded-2xl border border-orange-100 flex flex-col items-center text-center shadow-xs">
+                          <div className="w-16 h-16 rounded-xl overflow-hidden relative mb-1.5 border border-slate-100 shadow-inner">
+                            <Image src={item.imageUrl} alt={item.name} fill className="object-cover" />
+                          </div>
+                          <span className="text-[11px] font-bold text-slate-800 line-clamp-2">{item.name}</span>
+                        </div>
+                      ));
+                    } catch {
+                      return null;
+                    }
+                  })()}
+                </div>
+              </div>
+            )}
 
             {/* Food attributes grid */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-6">
