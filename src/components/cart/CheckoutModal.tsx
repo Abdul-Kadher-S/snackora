@@ -79,6 +79,7 @@ export function CheckoutModal() {
     checked: boolean;
     exists: boolean;
     hasPin: boolean;
+    orderCount?: number;
   }>({ checked: false, exists: false, hasPin: false });
   const [checkingAccount, setCheckingAccount] = useState(false);
 
@@ -148,6 +149,7 @@ export function CheckoutModal() {
           checked: true,
           exists: Boolean(data.exists),
           hasPin: Boolean(data.hasPin),
+          orderCount: typeof data.orderCount === 'number' ? data.orderCount : 0,
         });
         if (data.exists) {
           if (data.name && (!customerName || customerName.trim() === '')) {
@@ -294,25 +296,18 @@ export function CheckoutModal() {
       return;
     }
 
-    // PIN Validation
+    // PIN Validation: ONLY required for first-time customer (or customer without PIN)
     const isCurrentlyLoggedIn = isCustomerLoggedIn && customer?.phone === cleanPhone;
-    if (!isCurrentlyLoggedIn) {
-      if (!accountInfo.exists || !accountInfo.hasPin) {
-        // First-time customer or legacy customer without PIN
-        if (!/^\d{4}$/.test(pin.trim())) {
-          setErrorMsg('Please create your 4-digit PIN (numbers only).');
-          return;
-        }
-        if (pin.trim() !== confirmPin.trim()) {
-          setErrorMsg('PIN confirmation does not match. Please check your PIN.');
-          return;
-        }
-      } else {
-        // Returning customer with PIN
-        if (!/^\d{4}$/.test(pin.trim())) {
-          setErrorMsg('Please enter your 4-digit PIN to confirm your order.');
-          return;
-        }
+    const isReturningCustomer = (accountInfo.exists && accountInfo.hasPin) || isCurrentlyLoggedIn;
+    if (!isReturningCustomer) {
+      // First-time customer or legacy customer without PIN
+      if (!/^\d{4}$/.test(pin.trim())) {
+        setErrorMsg('Please create your 4-digit PIN (numbers only).');
+        return;
+      }
+      if (pin.trim() !== confirmPin.trim()) {
+        setErrorMsg('PIN confirmation does not match. Please check your PIN.');
+        return;
       }
     }
 
@@ -576,37 +571,27 @@ export function CheckoutModal() {
                   </span>
                 </div>
               ) : (
-                /* Returning customer: Enter 4-digit PIN */
-                <div className="bg-amber-50/90 border border-amber-300/80 rounded-2xl p-4 space-y-2.5 animate-fade-in">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <Lock className="w-4 h-4 text-[#FF6B00]" />
-                      <span className="text-xs font-black text-slate-800 uppercase tracking-wider">
-                        Welcome back to SNACKORA
-                      </span>
+                /* Returning customer (2nd order onwards): No PIN needed */
+                <div className="bg-emerald-50/90 border border-emerald-200/90 rounded-2xl p-3.5 flex items-center justify-between animate-fade-in">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                      <CheckCircle2 className="w-4 h-4" />
                     </div>
-                    <span className="text-[10px] font-bold text-amber-900 bg-amber-200/80 px-2 py-0.5 rounded-full">
-                      Existing Customer
-                    </span>
+                    <div>
+                      <div className="text-xs font-bold text-emerald-950 flex items-center gap-2">
+                        <span>Welcome back{customerName ? `, ${customerName}` : ''}!</span>
+                        <span className="text-[10px] bg-emerald-200/70 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
+                          {accountInfo.orderCount && accountInfo.orderCount > 1 ? `Order #${accountInfo.orderCount + 1}` : 'Returning Customer'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-emerald-700 mt-0.5">
+                        Account verified • No PIN needed to place your order! 🚀
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-[11px] text-slate-600">
-                    Enter your 4-digit PIN to confirm your order and keep your account secure:
-                  </p>
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                      4-Digit PIN *
-                    </label>
-                    <input
-                      type="password"
-                      inputMode="numeric"
-                      required
-                      maxLength={4}
-                      value={pin}
-                      onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-                      placeholder="••••"
-                      className="w-36 px-3 py-2 bg-white border border-amber-300 rounded-xl text-center text-base font-black tracking-[0.3em] text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/40"
-                    />
-                  </div>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-1 rounded-xl shrink-0">
+                    PIN Saved ✓
+                  </span>
                 </div>
               )}
             </>

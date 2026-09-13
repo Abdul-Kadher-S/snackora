@@ -73,6 +73,10 @@ export function CombosClient() {
   ];
   const [uploadingSlotIndex, setUploadingSlotIndex] = useState<number | null>(null);
 
+  // File upload ref & state for main combo cover image
+  const mainCoverFileRef = useRef<HTMLInputElement>(null);
+  const [uploadingMainCover, setUploadingMainCover] = useState(false);
+
   const fetchCombos = async () => {
     setLoading(true);
     try {
@@ -144,6 +148,38 @@ export function CombosClient() {
       showToast('Image upload failed', 'error');
     } finally {
       setUploadingSlotIndex(null);
+    }
+  };
+
+  const handleUploadMainCover = async (file: File) => {
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('Image is larger than 5MB', 'error');
+      return;
+    }
+
+    setUploadingMainCover(true);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+
+      const res = await fetch('/api/admin/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setMainImageUrl(data.url);
+        showToast('Combo cover image uploaded from gallery!', 'success');
+      } else {
+        const err = await res.json();
+        showToast(err.error || 'Failed to upload cover image', 'error');
+      }
+    } catch (e) {
+      console.error(e);
+      showToast('Cover image upload failed', 'error');
+    } finally {
+      setUploadingMainCover(false);
     }
   };
 
@@ -733,20 +769,89 @@ export function CombosClient() {
               </div>
 
               {/* Cover Banner Image */}
-              <div className="pt-2 border-t border-slate-800">
-                <label className="block font-bold text-slate-300 uppercase mb-1">
-                  Main Combo Cover Image URL
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="url"
-                    value={mainImageUrl}
-                    onChange={(e) => setMainImageUrl(e.target.value)}
-                    placeholder="https://..."
-                    className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none"
-                  />
-                  <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 overflow-hidden relative shrink-0">
-                    <Image src={mainImageUrl || PRESET_SNACK_IMAGES[0].url} alt="Cover" fill className="object-cover" />
+              <div className="pt-3 border-t border-slate-800 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="block font-bold text-slate-300 uppercase text-xs">
+                    Main Combo Cover Image
+                  </label>
+                  <span className="text-[10px] text-slate-500 font-semibold">
+                    Primary card & hero banner image
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-3 bg-slate-950/70 p-3 rounded-2xl border border-slate-800">
+                  <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-slate-900 border border-slate-700 shrink-0 shadow-inner">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={mainImageUrl || PRESET_SNACK_IMAGES[0].url}
+                      alt="Combo Cover Preview"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = PRESET_SNACK_IMAGES[0].url;
+                      }}
+                    />
+                  </div>
+
+                  <div className="flex-1 space-y-1.5 min-w-0">
+                    <input
+                      type="file"
+                      ref={mainCoverFileRef}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) handleUploadMainCover(f);
+                        e.target.value = '';
+                      }}
+                      accept="image/png, image/jpeg, image/webp, image/gif"
+                      className="hidden"
+                    />
+
+                    <button
+                      type="button"
+                      disabled={uploadingMainCover}
+                      onClick={() => mainCoverFileRef.current?.click()}
+                      className="w-full px-3.5 py-2 bg-gradient-to-r from-[#FF6B00] to-orange-500 hover:from-orange-600 hover:to-orange-500 active:scale-98 text-white text-xs font-bold rounded-xl shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2 transition disabled:opacity-50 cursor-pointer"
+                    >
+                      {uploadingMainCover ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Uploading Cover Photo...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>Upload from Gallery / Files</span>
+                        </>
+                      )}
+                    </button>
+                    <p className="text-[10px] text-slate-400">
+                      PNG, JPG, WebP up to 5MB. Directly uploads from your phone or PC.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Direct Image URL input fallback */}
+                <div>
+                  <label className="block text-[10px] text-slate-400 mb-1 font-semibold">
+                    Or enter/paste direct Image URL:
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="url"
+                      value={mainImageUrl}
+                      onChange={(e) => setMainImageUrl(e.target.value)}
+                      placeholder="https://..."
+                      className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-[#FF6B00]"
+                    />
+                    {mainImageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setMainImageUrl('')}
+                        className="px-2.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl text-xs font-semibold transition shrink-0"
+                        title="Clear URL"
+                      >
+                        Clear
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

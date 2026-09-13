@@ -43,6 +43,10 @@ export async function GET(request: NextRequest) {
         });
       }
 
+      const orderCount = await prisma.order.count({
+        where: { phone: cleanPhone },
+      });
+
       return NextResponse.json({
         exists: true,
         hasPin: Boolean(customer.pinHash),
@@ -50,6 +54,7 @@ export async function GET(request: NextRequest) {
         block: customer.block,
         roomNumber: customer.roomNumber,
         availableSnackpoints: customer.availableSnackpoints,
+        orderCount,
       });
     }
 

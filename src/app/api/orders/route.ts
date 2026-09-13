@@ -348,8 +348,8 @@ export async function POST(request: NextRequest) {
 
     // === PRE-VERIFY / PRE-HASH PIN OUTSIDE TRANSACTION (AVOID DB TRANSACTION DELAY) ===
     let assignedPinHash: string | undefined;
-    if (!prefetchedCustomer) {
-      // First-time customer: must create 4-digit PIN
+    if (!prefetchedCustomer || !prefetchedCustomer.pinHash) {
+      // First-time customer or customer without existing PIN: must create 4-digit PIN
       if (!pin || typeof pin !== 'string' || !/^\d{4}$/.test(pin.trim())) {
         return NextResponse.json({ error: 'Please create a 4-digit PIN for your account.' }, { status: 400 });
       }
@@ -357,24 +357,15 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'PIN confirmation does not match. Please re-enter.' }, { status: 400 });
       }
       assignedPinHash = await hashCustomerPin(pin);
-    } else if (prefetchedCustomer.pinHash) {
-      // Returning customer with existing PIN
-      if (!pin || typeof pin !== 'string' || !/^\d{4}$/.test(pin.trim())) {
-        return NextResponse.json({ error: 'Please enter your 4-digit PIN to confirm your order.' }, { status: 400 });
-      }
-      const isPinValid = await verifyCustomerPin(pin, prefetchedCustomer.pinHash);
-      if (!isPinValid) {
-        return NextResponse.json({ error: 'Incorrect 4-digit PIN. Please enter your correct PIN.' }, { status: 400 });
-      }
     } else {
-      // Legacy customer setting up PIN for first time
-      if (!pin || typeof pin !== 'string' || !/^\d{4}$/.test(pin.trim())) {
-        return NextResponse.json({ error: 'Please create a 4-digit PIN for your account.' }, { status: 400 });
+      // Returning customer with existing PIN: No PIN needed for 2nd order onwards!
+      // If PIN is provided, verify it, but do not block order when PIN is omitted.
+      if (pin && typeof pin === 'string' && /^\d{4}$/.test(pin.trim())) {
+        const isPinValid = await verifyCustomerPin(pin, prefetchedCustomer.pinHash);
+        if (!isPinValid) {
+          return NextResponse.json({ error: 'Incorrect 4-digit PIN. Please enter your correct PIN.' }, { status: 400 });
+        }
       }
-      if (pin.trim() !== (confirmPin || '').trim()) {
-        return NextResponse.json({ error: 'PIN confirmation does not match. Please re-enter.' }, { status: 400 });
-      }
-      assignedPinHash = await hashCustomerPin(pin);
     }
 
     // === EXECUTE ORDER (HIGH-SPEED ATOMIC TRANSACTION) ===
